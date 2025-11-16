@@ -255,10 +255,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         //     Alert.alert("Validation Error", "Please enter your date of birth");
         //     return false;
         // }
-        if (!gender) {
-            Alert.alert("Validation Error", "Please select your gender");
-            return false;
-        }
+        // if (!gender) {
+        //     Alert.alert("Validation Error", "Please select your gender");
+        //     return false;
+        // }
         if (!govtIdType) {
             Alert.alert("Validation Error", "Please select ID type");
             return false;
@@ -409,8 +409,11 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 {/* Logo */}
                 <View style={styles.logoContainer}>
                     <View style={styles.logoPlaceholder}>
-                        <Text style={styles.logoText}>CONCEPT</Text>
-                        <Text style={styles.logoSubtext}>PROMOTIONS</Text>
+                        <Image
+                            source={require("../../assets/cpLogo.jpg")}
+                            style={styles.logoImage}
+                            resizeMode="contain"
+                        />
                     </View>
                 </View>
 
@@ -438,7 +441,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Name */}
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Full Name *</Text>
+                        <Text style={styles.label}>
+                            Full Name<Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter full name"
@@ -450,7 +455,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Contact Number */}
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Contact Number *</Text>
+                        <Text style={styles.label}>
+                            Contact Number
+                            <Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter 10-digit mobile number"
@@ -478,7 +486,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Email */}
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Email *</Text>
+                        <Text style={styles.label}>Email</Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter email address"
@@ -493,7 +501,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                     {/* Date of Birth */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>
-                            Date of Birth (DD/MM/YYYY) *
+                            Date of Birth (DD/MM/YYYY)
                         </Text>
                         <TextInput
                             style={styles.input}
@@ -507,7 +515,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Gender Dropdown */}
                     <View style={[styles.inputGroup, { zIndex: 6000 }]}>
-                        <Text style={styles.label}>Gender *</Text>
+                        <Text style={styles.label}>Gender</Text>
                         <DropDownPicker
                             open={genderOpen}
                             value={gender}
@@ -528,7 +536,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Govt ID Type */}
                     <View style={[styles.inputGroup, { zIndex: 5000 }]}>
-                        <Text style={styles.label}>Government ID Type *</Text>
+                        <Text style={styles.label}>
+                            Government ID Type
+                            <Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <DropDownPicker
                             open={idTypeOpen}
                             value={govtIdType}
@@ -548,7 +559,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Govt ID Number */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>ID Number *</Text>
+                        <Text style={styles.label}>
+                            ID Number<Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter ID number"
@@ -561,7 +574,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Upload Govt ID Photo */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>Government ID Photo</Text>
+                        <Text style={styles.label}>
+                            Government ID Photo
+                            <Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TouchableOpacity
                             style={styles.fileUploadButton}
                             onPress={pickGovtIdPhoto}
@@ -586,7 +602,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Shop Name */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>Shop Name *</Text>
+                        <Text style={styles.label}>
+                            Shop Name<Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter shop name"
@@ -598,7 +616,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Business Type */}
                     <View style={[styles.inputGroup, { zIndex: 4000 }]}>
-                        <Text style={styles.label}>Business Type *</Text>
+                        <Text style={styles.label}>
+                            Business Type
+                            <Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <DropDownPicker
                             open={businessTypeOpen}
                             value={businessType}
@@ -618,7 +639,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Ownership Type */}
                     <View style={[styles.inputGroup, { zIndex: 3000 }]}>
-                        <Text style={styles.label}>Ownership Type *</Text>
+                        <Text style={styles.label}>
+                            Ownership Type
+                            <Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <DropDownPicker
                             open={ownershipTypeOpen}
                             value={ownershipType}
@@ -665,7 +689,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Address Line 1 */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>Address Line 1 *</Text>
+                        <Text style={styles.label}>
+                            Address Line 1
+                            <Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter address"
@@ -689,7 +716,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* City */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>City *</Text>
+                        <Text style={styles.label}>
+                            City<Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter city"
@@ -701,7 +730,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* State */}
                     <View style={[styles.inputGroup, { zIndex: 2000 }]}>
-                        <Text style={styles.label}>State *</Text>
+                        <Text style={styles.label}>
+                            State<Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <DropDownPicker
                             open={stateOpen}
                             value={state}
@@ -722,7 +753,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Pincode */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>Pincode *</Text>
+                        <Text style={styles.label}>
+                            Pincode<Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter 6-digit pincode"
@@ -776,7 +809,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Bank Name */}
                     <View style={[styles.inputGroup, { zIndex: 1000 }]}>
-                        <Text style={styles.label}>Bank Name *</Text>
+                        <Text style={styles.label}>
+                            Bank Name<Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <DropDownPicker
                             open={bankOpen}
                             value={bankName}
@@ -796,7 +831,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* Account Number */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>Account Number *</Text>
+                        <Text style={styles.label}>
+                            Account Number
+                            <Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter account number"
@@ -809,7 +847,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                     {/* IFSC Code */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>IFSC Code *</Text>
+                        <Text style={styles.label}>
+                            IFSC Code<Text style={{ color: "red" }}> *</Text>
+                        </Text>
                         <TextInput
                             style={styles.input}
                             placeholder="Enter IFSC code"
@@ -915,11 +955,11 @@ const styles = StyleSheet.create({
         alignItems: "center",
         borderWidth: 2,
         borderStyle: "dashed",
-        borderColor: "#007AFF",
+        borderColor: "#E53935",
     },
     photoPlaceholderText: {
         fontSize: 36,
-        color: "#007AFF",
+        color: "#E53935",
         fontWeight: "300",
     },
     photoLabel: {
@@ -986,19 +1026,19 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     fileUploadText: {
-        color: "#007AFF",
+        color: "#E53935",
         fontSize: 14,
         fontWeight: "500",
     },
     submitButton: {
-        backgroundColor: "#007AFF",
+        backgroundColor: "#E53935",
         borderRadius: 12,
         paddingVertical: 16,
         alignItems: "center",
         marginTop: 30,
     },
     submitButtonDisabled: {
-        backgroundColor: "#A0C9F5",
+        backgroundColor: "#f5a0a0ff",
     },
     submitButtonText: {
         color: "#fff",
