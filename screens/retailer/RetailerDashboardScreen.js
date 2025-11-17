@@ -17,6 +17,7 @@ import {
 } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import * as RootNavigation from "../../navigation/RootNavigation";
 
 const RetailerDashboardScreen = ({ navigation }) => {
     const insets = useSafeAreaInsets();
@@ -98,13 +99,9 @@ const RetailerDashboardScreen = ({ navigation }) => {
             )
         );
     };
-
     // Handle view details
     const handleViewDetails = (campaign) => {
-        Alert.alert(
-            campaign.title,
-            `${campaign.description}\n\nDuration: ${campaign.startDate} to ${campaign.endDate}`
-        );
+        RootNavigation.navigate("CampaignDetails", { campaign });
     };
 
     return (

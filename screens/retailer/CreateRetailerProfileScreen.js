@@ -62,6 +62,83 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     // Loading state
     const [submitting, setSubmitting] = useState(false);
 
+    // otp and verification
+    const [otp, setOtp] = useState("");
+    const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+    const [contactError, setContactError] = useState("");
+
+    // regex
+    const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    const GST_REGEX =
+        /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    const PHONE_REGEX = /^[6-9][0-9]{9}$/;
+    const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+
+    const validatePAN = (value) => {
+        const upperValue = value.toUpperCase();
+        setPanCard(upperValue);
+        if (value && !PAN_REGEX.test(upperValue)) {
+            setPanError("Invalid PAN format (e.g., ABCDE1234F)");
+        } else {
+            setPanError("");
+        }
+    };
+
+    const validateGST = (value) => {
+        const upperValue = value.toUpperCase();
+        setGstNo(upperValue);
+        if (value && !GST_REGEX.test(upperValue)) {
+            setGstError("Invalid GST format (15 characters)");
+        } else {
+            setGstError("");
+        }
+    };
+
+    const validatePhone = (value) => {
+        setContactNo(value);
+        if (value && !PHONE_REGEX.test(value)) {
+            setContactError("Invalid phone number (must start with 6-9)");
+        } else {
+            setContactError("");
+        }
+        // Reset verification if number changes
+        if (isPhoneVerified) {
+            setIsPhoneVerified(false);
+            setShowOtpInput(false);
+        }
+    };
+
+    const validateIFSC = (value) => {
+        const upperValue = value.toUpperCase();
+        setIfsc(upperValue);
+        if (value && !IFSC_REGEX.test(upperValue)) {
+            setIfscError("Invalid IFSC code (e.g., SBIN0001234)");
+        } else {
+            setIfscError("");
+        }
+    };
+
+    const sendOTP = () => {
+        if (!PHONE_REGEX.test(contactNo)) {
+            setContactError("Please enter a valid 10-digit mobile number");
+            return;
+        }
+        // TODO: Implement actual OTP sending logic here
+        setShowOtpInput(true);
+        // Simulate OTP sent
+        alert("OTP sent to " + contactNo);
+    };
+
+    const verifyOTP = () => {
+        // TODO: Implement actual OTP verification logic here
+        if (otp.length === 6) {
+            setIsPhoneVerified(true);
+            alert("Phone number verified successfully!");
+        } else {
+            alert("Please enter a valid 6-digit OTP");
+        }
+    };
+
     // Dropdown options
     const [genderOptions] = useState([
         { label: "Male", value: "Male" },
@@ -438,7 +515,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 {/* Form Container */}
                 <View style={styles.formContainer}>
                     <Text style={styles.sectionTitle}>Personal Details</Text>
-
                     {/* Name */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>
@@ -452,24 +528,87 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             onChangeText={setName}
                         />
                     </View>
-
-                    {/* Contact Number */}
+                    {/* Contact Number with OTP Verification */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>
                             Contact Number
                             <Text style={{ color: "red" }}> *</Text>
                         </Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Enter 10-digit mobile number"
-                            placeholderTextColor="#999"
-                            value={contactNo}
-                            onChangeText={setContactNo}
-                            keyboardType="phone-pad"
-                            maxLength={10}
-                        />
-                    </View>
+                        <View style={styles.phoneContainer}>
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    styles.phoneInput,
+                                    contactError ? styles.inputError : null,
+                                ]}
+                                placeholder="Enter 10-digit mobile number"
+                                placeholderTextColor="#999"
+                                value={contactNo}
+                                onChangeText={validatePhone}
+                                keyboardType="phone-pad"
+                                maxLength={10}
+                                editable={!isPhoneVerified}
+                            />
+                            {!isPhoneVerified && (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.otpButton,
+                                        contactNo.length === 10 && !contactError
+                                            ? styles.otpButtonActive
+                                            : styles.otpButtonDisabled,
+                                    ]}
+                                    onPress={sendOTP}
+                                    disabled={
+                                        contactNo.length !== 10 || contactError
+                                    }
+                                >
+                                    <Text style={styles.otpButtonText}>
+                                        {showOtpInput
+                                            ? "Resend OTP"
+                                            : "Send OTP"}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                            {isPhoneVerified && (
+                                <View style={styles.verifiedBadge}>
+                                    <Text style={styles.verifiedText}>
+                                        ✓ Verified
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                        {contactError ? (
+                            <Text style={styles.errorText}>{contactError}</Text>
+                        ) : null}
 
+                        {showOtpInput && !isPhoneVerified && (
+                            <View style={styles.otpContainer}>
+                                <TextInput
+                                    style={styles.otpInput}
+                                    placeholder="Enter 6-digit OTP"
+                                    placeholderTextColor="#999"
+                                    value={otp}
+                                    onChangeText={setOtp}
+                                    keyboardType="number-pad"
+                                    maxLength={6}
+                                />
+                                <TouchableOpacity
+                                    style={[
+                                        styles.verifyButton,
+                                        otp.length === 6
+                                            ? styles.verifyButtonActive
+                                            : styles.verifyButtonDisabled,
+                                    ]}
+                                    onPress={verifyOTP}
+                                    disabled={otp.length !== 6}
+                                >
+                                    <Text style={styles.verifyButtonText}>
+                                        Verify
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
                     {/* Alternate Contact */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Alternate Contact</Text>
@@ -483,7 +622,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             maxLength={10}
                         />
                     </View>
-
                     {/* Email */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Email</Text>
@@ -497,7 +635,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             autoCapitalize="none"
                         />
                     </View>
-
                     {/* Date of Birth */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>
@@ -512,7 +649,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             maxLength={10}
                         />
                     </View>
-
                     {/* Gender Dropdown */}
                     <View style={[styles.inputGroup, { zIndex: 6000 }]}>
                         <Text style={styles.label}>Gender</Text>
@@ -533,7 +669,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             }}
                         />
                     </View>
-
                     {/* Govt ID Type */}
                     <View style={[styles.inputGroup, { zIndex: 5000 }]}>
                         <Text style={styles.label}>
@@ -556,7 +691,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             }}
                         />
                     </View>
-
                     {/* Govt ID Number */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>
@@ -571,7 +705,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             autoCapitalize="characters"
                         />
                     </View>
-
                     {/* Upload Govt ID Photo */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>
@@ -589,7 +722,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             </Text>
                         </TouchableOpacity>
                     </View>
-
                     {/* Shop Details Section */}
                     <Text
                         style={[
@@ -599,7 +731,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                     >
                         Shop Details
                     </Text>
-
                     {/* Shop Name */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>
@@ -613,7 +744,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             onChangeText={setShopName}
                         />
                     </View>
-
                     {/* Business Type */}
                     <View style={[styles.inputGroup, { zIndex: 4000 }]}>
                         <Text style={styles.label}>
@@ -636,7 +766,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             }}
                         />
                     </View>
-
                     {/* Ownership Type */}
                     <View style={[styles.inputGroup, { zIndex: 3000 }]}>
                         <Text style={styles.label}>
@@ -658,35 +787,46 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             }}
                         />
                     </View>
-
+                    // FIXME: Implement a regex for this GST no
                     {/* GST Number */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>GST Number</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[
+                                styles.input,
+                                panError ? styles.inputError : null,
+                            ]}
                             placeholder="Enter GST number"
                             placeholderTextColor="#999"
                             value={gstNo}
-                            onChangeText={setGstNo}
+                            onChangeText={validateGST}
                             autoCapitalize="characters"
                             maxLength={15}
                         />
+                        {gstError ? (
+                            <Text style={styles.errorText}>{gstError}</Text>
+                        ) : null}
                     </View>
-
+                    // FIXME: Implement a regex for this PAN card
                     {/* PAN Card */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>PAN Card</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[
+                                styles.input,
+                                gstError ? styles.inputError : null,
+                            ]}
                             placeholder="Enter PAN card number"
                             placeholderTextColor="#999"
                             value={panCard}
-                            onChangeText={setPanCard}
+                            onChangeText={validatePAN}
                             autoCapitalize="characters"
                             maxLength={10}
                         />
+                        {panError ? (
+                            <Text style={styles.errorText}>{panError}</Text>
+                        ) : null}
                     </View>
-
                     {/* Address Line 1 */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>
@@ -701,7 +841,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             onChangeText={setAddress1}
                         />
                     </View>
-
                     {/* Address Line 2 */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>Address Line 2</Text>
@@ -713,7 +852,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             onChangeText={setAddress2}
                         />
                     </View>
-
                     {/* City */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>
@@ -727,7 +865,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             onChangeText={setCity}
                         />
                     </View>
-
                     {/* State */}
                     <View style={[styles.inputGroup, { zIndex: 2000 }]}>
                         <Text style={styles.label}>
@@ -750,7 +887,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             }}
                         />
                     </View>
-
                     {/* Pincode */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>
@@ -766,7 +902,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             maxLength={6}
                         />
                     </View>
-
                     {/* Upload Outlet Photo */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>Outlet Photo</Text>
@@ -781,7 +916,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             </Text>
                         </TouchableOpacity>
                     </View>
-
                     {/* Upload Registration Form */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>Registration Form</Text>
@@ -796,7 +930,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             </Text>
                         </TouchableOpacity>
                     </View>
-
                     {/* Bank Details Section */}
                     <Text
                         style={[
@@ -806,7 +939,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                     >
                         Bank Details
                     </Text>
-
                     {/* Bank Name */}
                     <View style={[styles.inputGroup, { zIndex: 1000 }]}>
                         <Text style={styles.label}>
@@ -828,7 +960,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             }}
                         />
                     </View>
-
+                    {/* // TODO: Do a penny check box */}
                     {/* Account Number */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>
@@ -844,23 +976,28 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             keyboardType="number-pad"
                         />
                     </View>
-
+                    {/* // TODO: Implement IFSC check using regex */}
                     {/* IFSC Code */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>
                             IFSC Code<Text style={{ color: "red" }}> *</Text>
                         </Text>
                         <TextInput
-                            style={styles.input}
+                            style={[
+                                styles.input,
+                                ifscError ? styles.inputError : null,
+                            ]}
                             placeholder="Enter IFSC code"
                             placeholderTextColor="#999"
                             value={ifsc}
-                            onChangeText={setIfsc}
+                            onChangeText={validateIFSC}
                             autoCapitalize="characters"
                             maxLength={11}
                         />
+                        {ifscError ? (
+                            <Text style={styles.errorText}>{ifscError}</Text>
+                        ) : null}
                     </View>
-
                     {/* Branch Name */}
                     <View style={[styles.inputGroup, { zIndex: 1 }]}>
                         <Text style={styles.label}>Branch Name</Text>
@@ -872,7 +1009,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             onChangeText={setBranchName}
                         />
                     </View>
-
                     {/* Submit Button */}
                     <TouchableOpacity
                         style={[
@@ -888,6 +1024,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             <Text style={styles.submitButtonText}>
                                 Create Profile
                             </Text>
+                            // TODO: Terms & conditions ka checkbox ek
                         )}
                     </TouchableOpacity>
                 </View>
@@ -1044,6 +1181,86 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 16,
         fontWeight: "bold",
+    },
+    inputError: {
+        borderColor: "#ff4444",
+        borderWidth: 1,
+    },
+    errorText: {
+        color: "#ff4444",
+        fontSize: 12,
+        marginTop: 4,
+    },
+    phoneContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    phoneInput: {
+        flex: 1,
+    },
+    otpButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 8,
+        minWidth: 100,
+        alignItems: "center",
+    },
+    otpButtonActive: {
+        backgroundColor: "#007AFF",
+    },
+    otpButtonDisabled: {
+        backgroundColor: "#ccc",
+    },
+    otpButtonText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    verifiedBadge: {
+        backgroundColor: "#4CAF50",
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 6,
+    },
+    verifiedText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    otpContainer: {
+        flexDirection: "row",
+        marginTop: 12,
+        gap: 8,
+    },
+    otpInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: "#ddd",
+        borderRadius: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        fontSize: 16,
+        backgroundColor: "#fff",
+    },
+    verifyButton: {
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        minWidth: 90,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    verifyButtonActive: {
+        backgroundColor: "#4CAF50",
+    },
+    verifyButtonDisabled: {
+        backgroundColor: "#ccc",
+    },
+    verifyButtonText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
     },
 });
 
