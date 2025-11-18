@@ -11,6 +11,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import * as RootNavigation from "../../navigation/RootNavigation";
 
 const CampaignDetailsScreen = ({ route, navigation }) => {
     const { campaign } = route.params;
@@ -22,10 +23,7 @@ const CampaignDetailsScreen = ({ route, navigation }) => {
     };
 
     const handleSubmitReport = () => {
-        Alert.alert(
-            "Submit Report",
-            "Report submission functionality coming soon!"
-        );
+        RootNavigation.navigate("SubmitReport", { campaign });
     };
 
     return (

@@ -3,6 +3,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import RetailerTabNavigator from "./RetailerTabNavigator";
 import CampaignDetailsScreen from "../screens/retailer/CampaignDetailsScreen";
+import SubmitReportScreen from "../screens/retailer/SubmitReportScreen";
+import UpdateProfileScreen from "../screens/retailer/UpdateProfileScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -18,8 +20,13 @@ const RetailerStackNavigator = () => {
                 component={RetailerTabNavigator}
             />
             <Stack.Screen
-                name="CampaignDetails" // ✅ This is the correct name to use
+                name="CampaignDetails"
                 component={CampaignDetailsScreen}
+            />
+            <Stack.Screen name="SubmitReport" component={SubmitReportScreen} />
+            <Stack.Screen
+                name="UpdateProfile"
+                component={UpdateProfileScreen}
             />
         </Stack.Navigator>
     );
