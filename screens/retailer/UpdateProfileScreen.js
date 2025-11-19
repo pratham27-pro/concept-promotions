@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as RootNavigation from "../../navigation/RootNavigation";
 import PennyTransferModal from "../../components/PennyTransferModal";
 import SuccessModal from "../../components/SuccessModal";
+import PhotoPicker from "../../components/common/PhotoPicker";
 
 const UpdateProfileScreen = ({ route }) => {
     const { retailer } = route.params;
@@ -128,22 +129,18 @@ const UpdateProfileScreen = ({ route }) => {
                 nestedScrollEnabled={true}
             >
                 {/* Profile Photo Upload */}
-                <TouchableOpacity
-                    style={styles.photoUploadContainer}
-                    onPress={pickPersonPhoto}
-                >
-                    {personPhoto ? (
-                        <Image
-                            source={{ uri: personPhoto }}
-                            style={styles.profilePhoto}
-                        />
-                    ) : (
-                        <View style={styles.photoPlaceholder}>
-                            <Text style={styles.photoPlaceholderText}>+</Text>
-                            <Text style={styles.photoLabel}>Update Photo</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
+                <View style={{ alignSelf: "center", marginVertical: 20 }}>
+                    <PhotoPicker
+                        label="Profile Photo"
+                        photo={personPhoto}
+                        onPhotoSelect={(img) => setPersonPhoto(img.uri)}
+                        onPhotoRemove={() => setPersonPhoto(null)}
+                        size="medium"
+                        shape="circle"
+                        placeholder="Update Photo"
+                        required={false}
+                    />
+                </View>
 
                 <View style={styles.formContainer}>
                     {/* Non-editable Fields */}

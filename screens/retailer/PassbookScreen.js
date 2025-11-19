@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as RootNavigation from "../../navigation/RootNavigation";
+import Header from "../../components/common/Header";
 
 const PassbookScreen = () => {
     // Mock data - will be fetched from DB
@@ -409,23 +410,7 @@ const PassbookScreen = () => {
             <StatusBar style="dark" />
 
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => RootNavigation.goBack()}
-                >
-                    <Ionicons name="arrow-back" size={24} color="#333" />
-                </TouchableOpacity>
-
-                <View style={styles.logoContainer}>
-                    <View style={styles.logoPlaceholder}>
-                        <Text style={styles.logoText}>CONCEPT</Text>
-                        <Text style={styles.logoSubtext}>PROMOTIONS</Text>
-                    </View>
-                </View>
-
-                <View style={styles.placeholder} />
-            </View>
+            <Header />
 
             {/* Transactions List with Header */}
             <FlatList

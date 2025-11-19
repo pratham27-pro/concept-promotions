@@ -12,6 +12,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as RootNavigation from "../../navigation/RootNavigation";
+import Header from "../../components/common/Header";
+import GridButton from "../../components/common/GridButton";
 
 const CampaignDetailsScreen = ({ route, navigation }) => {
     const { campaign } = route.params;
@@ -31,23 +33,7 @@ const CampaignDetailsScreen = ({ route, navigation }) => {
             <StatusBar style="dark" />
 
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
-                >
-                    <Ionicons name="arrow-back" size={24} color="#333" />
-                </TouchableOpacity>
-
-                <View style={styles.logoContainer}>
-                    <View style={styles.logoPlaceholder}>
-                        <Text style={styles.logoText}>CONCEPT</Text>
-                        <Text style={styles.logoSubtext}>PROMOTIONS</Text>
-                    </View>
-                </View>
-
-                <View style={styles.placeholder} />
-            </View>
+            <Header />
 
             <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -64,127 +50,55 @@ const CampaignDetailsScreen = ({ route, navigation }) => {
                 {/* Grid Buttons - 2 columns, 3 rows */}
                 <View style={styles.gridContainer}>
                     {/* Row 1 */}
-                    <TouchableOpacity
-                        style={styles.buttonWrapper}
-                        onPress={() => handleButtonPress("Info")}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={["#ff6b6b", "#ee5a6f"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.gradientButton}
-                        >
-                            <Ionicons
-                                name="information-circle-outline"
-                                size={28}
-                                color="#fff"
-                            />
-                            <Text style={styles.buttonText}>Info</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    <GridButton
+                        title="Info"
+                        icon="information-circle-outline"
+                        onPress={() => console.log("Info pressed")}
+                        // navigateTo="CampaignInfo"
+                        // navigationParams={{ campaign }}
+                    />
 
-                    <TouchableOpacity
-                        style={styles.buttonWrapper}
-                        onPress={() => handleButtonPress("Gratification")}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={["#ff6b6b", "#ee5a6f"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.gradientButton}
-                        >
-                            <Ionicons
-                                name="gift-outline"
-                                size={28}
-                                color="#fff"
-                            />
-                            <Text style={styles.buttonText}>Gratification</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    <GridButton
+                        title="Gratification"
+                        icon="gift-outline"
+                        onPress={() => console.log("Gratification pressed")}
+                        // navigateTo="CampaignInfo"
+                        // navigationParams={{ campaign }}
+                    />
 
                     {/* Row 2 */}
-                    <TouchableOpacity
-                        style={styles.buttonWrapper}
-                        onPress={() => handleButtonPress("View Report")}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={["#ff6b6b", "#ee5a6f"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.gradientButton}
-                        >
-                            <Ionicons
-                                name="document-text-outline"
-                                size={28}
-                                color="#fff"
-                            />
-                            <Text style={styles.buttonText}>View Report</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    <GridButton
+                        title="View Report"
+                        icon="document-text-outline"
+                        onPress={() => console.log("View Report pressed")}
+                        // navigateTo="CampaignInfo"
+                        // navigationParams={{ campaign }}
+                    />
 
-                    <TouchableOpacity
-                        style={styles.buttonWrapper}
-                        onPress={() => handleButtonPress("Status")}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={["#ff6b6b", "#ee5a6f"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.gradientButton}
-                        >
-                            <Ionicons
-                                name="stats-chart-outline"
-                                size={28}
-                                color="#fff"
-                            />
-                            <Text style={styles.buttonText}>Status</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    <GridButton
+                        title="Stats"
+                        icon="stats-chart-outline"
+                        onPress={() => console.log("Stats pressed")}
+                        // navigateTo="CampaignInfo"
+                        // navigationParams={{ campaign }}
+                    />
 
                     {/* Row 3 */}
-                    <TouchableOpacity
-                        style={styles.buttonWrapper}
-                        onPress={() => handleButtonPress("Period")}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={["#ff6b6b", "#ee5a6f"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.gradientButton}
-                        >
-                            <Ionicons
-                                name="calendar-outline"
-                                size={28}
-                                color="#fff"
-                            />
-                            <Text style={styles.buttonText}>Period</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    <GridButton
+                        title="Period"
+                        icon="calendar-outline"
+                        onPress={() => console.log("Period pressed")}
+                        // navigateTo="CampaignInfo"
+                        // navigationParams={{ campaign }}
+                    />
 
-                    <TouchableOpacity
-                        style={styles.buttonWrapper}
-                        onPress={() => handleButtonPress("Leaderboard")}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={["#ff6b6b", "#ee5a6f"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.gradientButton}
-                        >
-                            <Ionicons
-                                name="trophy-outline"
-                                size={28}
-                                color="#fff"
-                            />
-                            <Text style={styles.buttonText}>Leaderboard</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    <GridButton
+                        title="Leaderboard"
+                        icon="trophy-outline"
+                        onPress={() => console.log("Leaderboard pressed")}
+                        // navigateTo="CampaignInfo"
+                        // navigationParams={{ campaign }}
+                    />
                 </View>
 
                 {/* Submit Report Button */}

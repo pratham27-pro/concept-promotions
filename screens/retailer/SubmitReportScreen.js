@@ -12,12 +12,14 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
-import * as DocumentPicker from "expo-document-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import DropDownPicker from "react-native-dropdown-picker";
 import { Ionicons } from "@expo/vector-icons";
 import * as RootNavigation from "../../navigation/RootNavigation";
+
+// Import reusable components
+import Header from "../../components/common/Header";
+import SearchableDropdown from "../../components/common/SearchableDropdown";
+import FileUpload from "../../components/common/FileUpload";
 
 const SubmitReportScreen = ({ route }) => {
     const { campaign } = route.params;
@@ -105,59 +107,6 @@ const SubmitReportScreen = ({ route }) => {
     // Files for window and others
     const [files, setFiles] = useState([]);
 
-    // Pick multiple images
-    const pickImages = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsMultipleSelection: true,
-                quality: 0.8,
-            });
-
-            if (!result.canceled) {
-                setFiles([...files, ...result.assets]);
-            }
-        } catch (error) {
-            Alert.alert("Error", "Failed to pick images");
-        }
-    };
-
-    // Pick single file for others
-    const pickDocument = async () => {
-        try {
-            const result = await DocumentPicker.getDocumentAsync({
-                type: "*/*",
-                copyToCacheDirectory: true,
-            });
-
-            if (result.type !== "cancel") {
-                setFiles([result]);
-            }
-        } catch (error) {
-            Alert.alert("Error", "Failed to pick document");
-        }
-    };
-
-    // Pick bill copy
-    const pickBillCopy = async () => {
-        try {
-            const result = await DocumentPicker.getDocumentAsync({
-                type: ["image/*", "application/pdf"],
-                copyToCacheDirectory: true,
-            });
-
-            if (result.type !== "cancel") {
-                setBillCopy(result);
-            }
-        } catch (error) {
-            Alert.alert("Error", "Failed to pick bill copy");
-        }
-    };
-
-    const removeFile = (index) => {
-        setFiles(files.filter((_, i) => i !== index));
-    };
-
     const handleSubmit = () => {
         if (!reportType) {
             Alert.alert("Error", "Please select report type");
@@ -180,18 +129,8 @@ const SubmitReportScreen = ({ route }) => {
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <StatusBar style="dark" />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => RootNavigation.goBack()}
-                >
-                    <Ionicons name="arrow-back" size={24} color="#333" />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>Submit Report</Text>
-                <View style={styles.placeholder} />
-            </View>
+            {/* Header using reusable component */}
+            <Header title="Submit Report" />
 
             <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -206,42 +145,34 @@ const SubmitReportScreen = ({ route }) => {
                         </Text>
                     </View>
 
-                    {/* Type of Report */}
-                    <View style={[styles.inputGroup, { zIndex: 7000 }]}>
-                        <Text style={styles.label}>Type of Report *</Text>
-                        <DropDownPicker
-                            open={reportTypeOpen}
-                            value={reportType}
-                            items={reportTypeOptions}
-                            setOpen={setReportTypeOpen}
-                            setValue={setReportType}
-                            placeholder="Select Report Type"
-                            style={styles.dropdown}
-                            dropDownContainerStyle={styles.dropdownContainer}
-                            listMode="SCROLLVIEW"
-                            scrollViewProps={{ nestedScrollEnabled: true }}
-                        />
-                    </View>
+                    {/* Type of Report - Using SearchableDropdown */}
+                    <SearchableDropdown
+                        label="Type of Report"
+                        placeholder="Select Report Type"
+                        open={reportTypeOpen}
+                        value={reportType}
+                        items={reportTypeOptions}
+                        setOpen={setReportTypeOpen}
+                        setValue={setReportType}
+                        required={true}
+                        zIndex={7000}
+                    />
 
-                    {/* Frequency */}
-                    <View style={[styles.inputGroup, { zIndex: 6000 }]}>
-                        <Text style={styles.label}>Frequency *</Text>
-                        <DropDownPicker
-                            open={frequencyOpen}
-                            value={frequency}
-                            items={frequencyOptions}
-                            setOpen={setFrequencyOpen}
-                            setValue={setFrequency}
-                            placeholder="Select Frequency"
-                            style={styles.dropdown}
-                            dropDownContainerStyle={styles.dropdownContainer}
-                            listMode="SCROLLVIEW"
-                            scrollViewProps={{ nestedScrollEnabled: true }}
-                            onSelectItem={(item) => {
-                                setShowCustomDate(item.value === "custom");
-                            }}
-                        />
-                    </View>
+                    {/* Frequency - Using SearchableDropdown */}
+                    <SearchableDropdown
+                        label="Frequency"
+                        placeholder="Select Frequency"
+                        open={frequencyOpen}
+                        value={frequency}
+                        items={frequencyOptions}
+                        setOpen={setFrequencyOpen}
+                        setValue={setFrequency}
+                        required={true}
+                        zIndex={6000}
+                        onSelectItem={(item) => {
+                            setShowCustomDate(item.value === "custom");
+                        }}
+                    />
 
                     {/* Custom Date Range */}
                     {showCustomDate && (
@@ -304,22 +235,17 @@ const SubmitReportScreen = ({ route }) => {
                         </View>
                     )}
 
-                    {/* Extra (Future) */}
-                    <View style={[styles.inputGroup, { zIndex: 5000 }]}>
-                        <Text style={styles.label}>Extra (Future)</Text>
-                        <DropDownPicker
-                            open={futureOpen}
-                            value={future}
-                            items={futureOptions}
-                            setOpen={setFutureOpen}
-                            setValue={setFuture}
-                            placeholder="Select future use"
-                            style={styles.dropdown}
-                            dropDownContainerStyle={styles.dropdownContainer}
-                            listMode="SCROLLVIEW"
-                            scrollViewProps={{ nestedScrollEnabled: true }}
-                        />
-                    </View>
+                    {/* Extra (Future) - Using SearchableDropdown */}
+                    <SearchableDropdown
+                        label="Extra (Future)"
+                        placeholder="Select future use"
+                        open={futureOpen}
+                        value={future}
+                        items={futureOptions}
+                        setOpen={setFutureOpen}
+                        setValue={setFuture}
+                        zIndex={5000}
+                    />
 
                     {/* STOCK SECTION */}
                     {reportType === "stock" && (
@@ -328,105 +254,60 @@ const SubmitReportScreen = ({ route }) => {
                                 Stock Details
                             </Text>
 
-                            <View style={{ zIndex: 4000 }}>
-                                <Text style={styles.label}>Type of Stock</Text>
-                                <DropDownPicker
-                                    open={stockTypeOpen}
-                                    value={stockType}
-                                    items={stockTypeOptions}
-                                    setOpen={setStockTypeOpen}
-                                    setValue={setStockType}
-                                    placeholder="Select Stock Type"
-                                    style={styles.dropdown}
-                                    dropDownContainerStyle={
-                                        styles.dropdownContainer
-                                    }
-                                    listMode="SCROLLVIEW"
-                                    scrollViewProps={{
-                                        nestedScrollEnabled: true,
-                                    }}
-                                />
-                            </View>
+                            <SearchableDropdown
+                                label="Type of Stock"
+                                placeholder="Select Stock Type"
+                                open={stockTypeOpen}
+                                value={stockType}
+                                items={stockTypeOptions}
+                                setOpen={setStockTypeOpen}
+                                setValue={setStockType}
+                                zIndex={4000}
+                            />
 
-                            <View style={[styles.inputGroup, { zIndex: 3000 }]}>
-                                <Text style={styles.label}>Brand</Text>
-                                <DropDownPicker
-                                    open={brandOpen}
-                                    value={brand}
-                                    items={brandOptions}
-                                    setOpen={setBrandOpen}
-                                    setValue={setBrand}
-                                    placeholder="Select Brand"
-                                    style={styles.dropdown}
-                                    dropDownContainerStyle={
-                                        styles.dropdownContainer
-                                    }
-                                    listMode="SCROLLVIEW"
-                                    scrollViewProps={{
-                                        nestedScrollEnabled: true,
-                                    }}
-                                />
-                            </View>
+                            <SearchableDropdown
+                                label="Brand"
+                                placeholder="Select Brand"
+                                open={brandOpen}
+                                value={brand}
+                                items={brandOptions}
+                                setOpen={setBrandOpen}
+                                setValue={setBrand}
+                                zIndex={3000}
+                            />
 
-                            <View style={[styles.inputGroup, { zIndex: 2000 }]}>
-                                <Text style={styles.label}>Product</Text>
-                                <DropDownPicker
-                                    open={productOpen}
-                                    value={product}
-                                    items={productOptions}
-                                    setOpen={setProductOpen}
-                                    setValue={setProduct}
-                                    placeholder="Select Product"
-                                    style={styles.dropdown}
-                                    dropDownContainerStyle={
-                                        styles.dropdownContainer
-                                    }
-                                    listMode="SCROLLVIEW"
-                                    scrollViewProps={{
-                                        nestedScrollEnabled: true,
-                                    }}
-                                />
-                            </View>
+                            <SearchableDropdown
+                                label="Product"
+                                placeholder="Select Product"
+                                open={productOpen}
+                                value={product}
+                                items={productOptions}
+                                setOpen={setProductOpen}
+                                setValue={setProduct}
+                                zIndex={2000}
+                            />
 
-                            <View style={[styles.inputGroup, { zIndex: 1000 }]}>
-                                <Text style={styles.label}>SKU</Text>
-                                <DropDownPicker
-                                    open={skuOpen}
-                                    value={sku}
-                                    items={skuOptions}
-                                    setOpen={setSkuOpen}
-                                    setValue={setSku}
-                                    placeholder="Select SKU"
-                                    style={styles.dropdown}
-                                    dropDownContainerStyle={
-                                        styles.dropdownContainer
-                                    }
-                                    listMode="SCROLLVIEW"
-                                    scrollViewProps={{
-                                        nestedScrollEnabled: true,
-                                    }}
-                                />
-                            </View>
+                            <SearchableDropdown
+                                label="SKU"
+                                placeholder="Select SKU"
+                                open={skuOpen}
+                                value={sku}
+                                items={skuOptions}
+                                setOpen={setSkuOpen}
+                                setValue={setSku}
+                                zIndex={1000}
+                            />
 
-                            <View style={[styles.inputGroup, { zIndex: 500 }]}>
-                                <Text style={styles.label}>Product Type</Text>
-                                <DropDownPicker
-                                    open={productTypeOpen}
-                                    value={productType}
-                                    items={productTypeOptions}
-                                    setOpen={setProductTypeOpen}
-                                    setValue={setProductType}
-                                    placeholder="Select Product Type"
-                                    style={styles.dropdown}
-                                    dropDownContainerStyle={
-                                        styles.dropdownContainer
-                                    }
-                                    listMode="SCROLLVIEW"
-                                    scrollViewProps={{
-                                        nestedScrollEnabled: true,
-                                    }}
-                                />
-                            </View>
+                            <SearchableDropdown
+                                label="Product Type"
+                                placeholder="Select Product Type"
+                                open={productTypeOpen}
+                                value={productType}
+                                items={productTypeOptions}
+                                setOpen={setProductTypeOpen}
+                                setValue={setProductType}
+                                zIndex={500}
+                            />
 
                             <View style={[styles.inputGroup, { zIndex: 1 }]}>
                                 <Text style={styles.label}>Quantity *</Text>
@@ -440,159 +321,47 @@ const SubmitReportScreen = ({ route }) => {
                                 />
                             </View>
 
-                            {/* Bill Copy */}
-                            <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                                <Text style={styles.label}>Bill Copy</Text>
-                                {!billCopy ? (
-                                    <TouchableOpacity
-                                        style={styles.uploadBox}
-                                        onPress={pickBillCopy}
-                                    >
-                                        <Ionicons
-                                            name="add-circle-outline"
-                                            size={40}
-                                            color="#999"
-                                        />
-                                        <Text style={styles.uploadText}>
-                                            Click to upload bill copy
-                                        </Text>
-                                    </TouchableOpacity>
-                                ) : (
-                                    <View style={styles.filePreview}>
-                                        {billCopy.mimeType?.includes(
-                                            "image"
-                                        ) ? (
-                                            <Image
-                                                source={{ uri: billCopy.uri }}
-                                                style={styles.previewImage}
-                                            />
-                                        ) : (
-                                            <Text style={styles.fileName}>
-                                                {billCopy.name}
-                                            </Text>
-                                        )}
-                                        <TouchableOpacity
-                                            style={styles.removeButton}
-                                            onPress={() => setBillCopy(null)}
-                                        >
-                                            <Ionicons
-                                                name="close-circle"
-                                                size={24}
-                                                color="#dc3545"
-                                            />
-                                            <Text style={styles.removeText}>
-                                                Remove
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
-                            </View>
+                            {/* Bill Copy - Using FileUpload */}
+                            <FileUpload
+                                label="Bill Copy"
+                                file={billCopy}
+                                onFileSelect={setBillCopy}
+                                onFileRemove={() => setBillCopy(null)}
+                                accept="all"
+                                placeholder="Click to upload bill copy"
+                            />
                         </View>
                     )}
 
-                    {/* WINDOW SECTION */}
+                    {/* WINDOW SECTION - Using FileUpload */}
                     {reportType === "window" && (
-                        <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                            <Text style={styles.label}>
-                                Upload Shop Display
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.uploadBox}
-                                onPress={pickImages}
-                            >
-                                <Ionicons
-                                    name="add-circle-outline"
-                                    size={40}
-                                    color="#999"
-                                />
-                                <Text style={styles.uploadText}>
-                                    Click to add more images
-                                </Text>
-                            </TouchableOpacity>
-
-                            {files.length > 0 && (
-                                <View style={styles.imagesGrid}>
-                                    {files.map((file, index) => (
-                                        <View
-                                            key={index}
-                                            style={styles.imageCard}
-                                        >
-                                            <Image
-                                                source={{ uri: file.uri }}
-                                                style={styles.gridImage}
-                                            />
-                                            <TouchableOpacity
-                                                style={styles.removeIcon}
-                                                onPress={() =>
-                                                    removeFile(index)
-                                                }
-                                            >
-                                                <Ionicons
-                                                    name="close-circle"
-                                                    size={24}
-                                                    color="#dc3545"
-                                                />
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-
-                            {files.length > 0 && (
-                                <Text style={styles.fileCount}>
-                                    {files.length} image
-                                    {files.length !== 1 ? "s" : ""} uploaded
-                                </Text>
-                            )}
-                        </View>
+                        <FileUpload
+                            label="Upload Shop Display"
+                            file={files}
+                            onFileSelect={(newFiles) =>
+                                setFiles(
+                                    Array.isArray(newFiles)
+                                        ? newFiles
+                                        : [...files, newFiles]
+                                )
+                            }
+                            onFileRemove={setFiles}
+                            accept="image"
+                            multiple={true}
+                            placeholder="Click to add more images"
+                        />
                     )}
 
-                    {/* OTHERS SECTION */}
+                    {/* OTHERS SECTION - Using FileUpload */}
                     {reportType === "others" && (
-                        <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                            <Text style={styles.label}>Upload File</Text>
-                            {files.length === 0 ? (
-                                <TouchableOpacity
-                                    style={styles.uploadBox}
-                                    onPress={pickDocument}
-                                >
-                                    <Ionicons
-                                        name="add-circle-outline"
-                                        size={40}
-                                        color="#999"
-                                    />
-                                    <Text style={styles.uploadText}>
-                                        Click to upload file
-                                    </Text>
-                                </TouchableOpacity>
-                            ) : (
-                                <View style={styles.filePreview}>
-                                    {files[0].mimeType?.includes("image") ? (
-                                        <Image
-                                            source={{ uri: files[0].uri }}
-                                            style={styles.previewImage}
-                                        />
-                                    ) : (
-                                        <Text style={styles.fileName}>
-                                            {files[0].name}
-                                        </Text>
-                                    )}
-                                    <TouchableOpacity
-                                        style={styles.removeButton}
-                                        onPress={() => setFiles([])}
-                                    >
-                                        <Ionicons
-                                            name="close-circle"
-                                            size={24}
-                                            color="#dc3545"
-                                        />
-                                        <Text style={styles.removeText}>
-                                            Remove
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                        </View>
+                        <FileUpload
+                            label="Upload File"
+                            file={files.length > 0 ? files[0] : null}
+                            onFileSelect={(file) => setFiles([file])}
+                            onFileRemove={() => setFiles([])}
+                            accept="all"
+                            placeholder="Click to upload file"
+                        />
                     )}
 
                     {/* Submit Button */}
@@ -618,35 +387,6 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingBottom: Platform.OS === "ios" ? 100 : 90,
     },
-    header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingHorizontal: 15,
-        paddingVertical: 15,
-        backgroundColor: "#fff",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "#f0f0f0",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: "bold",
-        color: "#E4002B",
-    },
-    placeholder: {
-        width: 40,
-    },
     formContainer: {
         padding: 20,
     },
@@ -669,17 +409,6 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#333",
         marginBottom: 8,
-    },
-    dropdown: {
-        backgroundColor: "#F5F5F5",
-        borderColor: "#E0E0E0",
-        borderRadius: 10,
-        minHeight: 50,
-    },
-    dropdownContainer: {
-        backgroundColor: "#F5F5F5",
-        borderColor: "#E0E0E0",
-        borderRadius: 10,
     },
     input: {
         backgroundColor: "#F5F5F5",
@@ -720,79 +449,6 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "#333",
         marginBottom: 15,
-    },
-    uploadBox: {
-        borderWidth: 2,
-        borderStyle: "dashed",
-        borderColor: "#E0E0E0",
-        borderRadius: 10,
-        padding: 40,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#fafafa",
-    },
-    uploadText: {
-        marginTop: 10,
-        color: "#666",
-        fontSize: 14,
-    },
-    imagesGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        marginTop: 15,
-        gap: 10,
-    },
-    imageCard: {
-        width: "48%",
-        height: 120,
-        borderRadius: 10,
-        overflow: "hidden",
-        position: "relative",
-    },
-    gridImage: {
-        width: "100%",
-        height: "100%",
-    },
-    removeIcon: {
-        position: "absolute",
-        top: 5,
-        right: 5,
-        backgroundColor: "#fff",
-        borderRadius: 12,
-    },
-    filePreview: {
-        borderWidth: 2,
-        borderStyle: "dashed",
-        borderColor: "#E0E0E0",
-        borderRadius: 10,
-        padding: 20,
-        alignItems: "center",
-    },
-    previewImage: {
-        width: 120,
-        height: 120,
-        borderRadius: 10,
-        marginBottom: 10,
-    },
-    fileName: {
-        fontSize: 14,
-        color: "#333",
-        marginBottom: 10,
-    },
-    removeButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-    },
-    removeText: {
-        color: "#dc3545",
-        fontSize: 14,
-        fontWeight: "600",
-    },
-    fileCount: {
-        marginTop: 10,
-        fontSize: 13,
-        color: "#666",
     },
     submitButton: {
         backgroundColor: "#E4002B",

@@ -17,6 +17,7 @@ import {
 import DropDownPicker from "react-native-dropdown-picker";
 import PennyTransferModal from "../../components/PennyTransferModal";
 import SuccessModal from "../../components/SuccessModal";
+import PhotoPicker from "../../components/common/PhotoPicker";
 
 const CreateRetailerProfileScreen = ({ navigation }) => {
     // Personal Details
@@ -531,22 +532,18 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 </View>
 
                 {/* Profile Photo Upload */}
-                <TouchableOpacity
-                    style={styles.photoUploadContainer}
-                    onPress={pickPersonPhoto}
-                >
-                    {personPhoto ? (
-                        <Image
-                            source={{ uri: personPhoto.uri }}
-                            style={styles.profilePhoto}
-                        />
-                    ) : (
-                        <View style={styles.photoPlaceholder}>
-                            <Text style={styles.photoPlaceholderText}>+</Text>
-                            <Text style={styles.photoLabel}>Upload Photo</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
+                <View style={{ alignSelf: "center", marginVertical: 20 }}>
+                    <PhotoPicker
+                        label="Profile Photo"
+                        photo={personPhoto}
+                        onPhotoSelect={(img) => setPersonPhoto(img.uri)}
+                        onPhotoRemove={() => setPersonPhoto(null)}
+                        size="medium"
+                        shape="circle"
+                        placeholder="Update Photo"
+                        required={false}
+                    />
+                </View>
 
                 {/* Form Container */}
                 <View style={styles.formContainer}>
