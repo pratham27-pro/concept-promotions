@@ -16,9 +16,13 @@ import * as ImagePicker from "expo-image-picker";
 import DropDownPicker from "react-native-dropdown-picker";
 import { Ionicons } from "@expo/vector-icons";
 import * as RootNavigation from "../../navigation/RootNavigation";
+import PennyTransferModal from "../../components/PennyTransferModal";
+import SuccessModal from "../../components/SuccessModal";
 
 const UpdateProfileScreen = ({ route }) => {
     const { retailer } = route.params;
+    const [showPennyModal, setShowPennyModal] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     // Personal Details (changeable)
     const [personPhoto, setPersonPhoto] = useState(retailer.photo);
@@ -87,16 +91,17 @@ const UpdateProfileScreen = ({ route }) => {
             // TODO: API call to update profile
             await new Promise((resolve) => setTimeout(resolve, 2000));
 
-            Alert.alert("Success", "Profile updated successfully!", [
-                {
-                    text: "OK",
-                    onPress: () => RootNavigation.goBack(),
-                },
-            ]);
+            setShowPennyModal(true);
         } catch (error) {
             Alert.alert("Error", "Failed to update profile");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handlePennyConfirm = (received) => {
+        if (received) {
+            setShowSuccessModal(true);
         }
     };
 
@@ -315,6 +320,26 @@ const UpdateProfileScreen = ({ route }) => {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+            <PennyTransferModal
+                visible={showPennyModal}
+                onClose={() => setShowPennyModal(false)}
+                onConfirm={handlePennyConfirm}
+                bankDetails={{
+                    bankName: bankName,
+                    accountNumber: accountNumber,
+                    ifsc: ifsc,
+                }}
+            />
+
+            <SuccessModal
+                visible={showSuccessModal}
+                onClose={() => {
+                    setShowSuccessModal(false);
+                    RootNavigation.goBack();
+                }}
+                title="Profile Updated!"
+                message="Your profile has been updated and bank account verified successfully."
+            />
         </SafeAreaView>
     );
 };

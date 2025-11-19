@@ -15,6 +15,8 @@ import {
     View,
 } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
+import PennyTransferModal from "../../components/PennyTransferModal";
+import SuccessModal from "../../components/SuccessModal";
 
 const CreateRetailerProfileScreen = ({ navigation }) => {
     // Personal Details
@@ -66,6 +68,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const [otp, setOtp] = useState("");
     const [isPhoneVerified, setIsPhoneVerified] = useState(false);
     const [contactError, setContactError] = useState("");
+
+    // penny transfer
+    const [showPennyModal, setShowPennyModal] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     // regex
     const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
@@ -467,11 +473,41 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                     },
                 },
             ]);
+
+            const response = await fetch(
+                "https://supreme-419p.onrender.com/api/admin/retailers",
+                {
+                    method: "POST",
+                    headers: {
+                        // Authorization: `Bearer ${token}`,
+                    },
+                    body: formData,
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error("❌ API Error:", data);
+                Alert.alert(
+                    "Error",
+                    data.message || "Error registering retailer"
+                );
+            } else {
+                // Show penny transfer modal instead of direct success
+                setShowPennyModal(true);
+            }
         } catch (error) {
             console.error("Error submitting form:", error);
             Alert.alert("Error", "Failed to create profile. Please try again.");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handlePennyConfirm = (received) => {
+        if (received) {
+            setShowSuccessModal(true);
         }
     };
 
@@ -1029,6 +1065,27 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+            <PennyTransferModal
+                visible={showPennyModal}
+                onClose={() => setShowPennyModal(false)}
+                onConfirm={handlePennyConfirm}
+                bankDetails={{
+                    bankName: bankName,
+                    accountNumber: accountNumber,
+                    ifsc: ifsc,
+                }}
+            />
+
+            {/* Success Modal */}
+            <SuccessModal
+                visible={showSuccessModal}
+                onClose={() => {
+                    setShowSuccessModal(false);
+                    navigation.navigate("RetailerDashboard");
+                }}
+                title="Profile Created!"
+                message="Your profile has been created and bank account verified successfully."
+            />
         </View>
     );
 };
