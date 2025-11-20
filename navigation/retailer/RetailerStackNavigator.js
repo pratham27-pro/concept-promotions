@@ -1,11 +1,9 @@
-import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+import CampaignDetailsScreen from "../../screens/retailer/CampaignDetailsScreen";
+import SubmitReportScreen from "../../screens/retailer/SubmitReportScreen";
+import UpdateProfileScreen from "../../screens/retailer/UpdateProfileScreen";
 import RetailerTabNavigator from "./RetailerTabNavigator";
-import CampaignDetailsScreen from "../screens/retailer/CampaignDetailsScreen";
-import SubmitReportScreen from "../screens/retailer/SubmitReportScreen";
-import UpdateProfileScreen from "../screens/retailer/UpdateProfileScreen";
-
 const Stack = createNativeStackNavigator();
 
 const RetailerStackNavigator = () => {

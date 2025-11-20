@@ -1,13 +1,12 @@
-import React from "react";
-import { Platform } from "react-native";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Screens
-import RetailerDashboardScreen from "../screens/retailer/RetailerDashboardScreen";
-import PassbookScreen from "../screens/retailer/PassbookScreen";
-import ProfileScreen from "../screens/retailer/ProfileScreen";
+import PassbookScreen from "../../screens/retailer/PassbookScreen";
+import ProfileScreen from "../../screens/retailer/ProfileScreen";
+import RetailerDashboardScreen from "../../screens/retailer/RetailerDashboardScreen";
 
 const Tab = createBottomTabNavigator();
 
