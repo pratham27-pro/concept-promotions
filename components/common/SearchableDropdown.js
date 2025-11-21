@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, View, Text } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 
 const SearchableDropdown = ({
@@ -22,6 +22,21 @@ const SearchableDropdown = ({
     error,
     onSelectItem,
 }) => {
+    const handleSelectItem = (item) => {
+        // Toggle for single-select
+        if (!multiple) {
+            if (value === item.value) {
+                setValue(null);
+            } else {
+                setValue(item.value);
+            }
+        } else {
+            // Let DropDownPicker handle multi + we expose clear-all button
+            onSelectItem && onSelectItem(item);
+        }
+        onSelectItem && onSelectItem(item);
+    };
+
     return (
         <View style={[styles.container, { zIndex }]}>
             {label && (
@@ -48,11 +63,24 @@ const SearchableDropdown = ({
                 listMode="SCROLLVIEW"
                 scrollViewProps={{
                     nestedScrollEnabled: true,
+                    scrollEnabled: true,
+                    showsVerticalScrollIndicator: true,
                 }}
+                dropDownDirection="AUTO"
                 searchPlaceholder="Search..."
-                onSelectItem={onSelectItem}
+                onSelectItem={handleSelectItem}
                 theme="LIGHT"
             />
+            {((multiple && Array.isArray(value) && value.length > 0) ||
+                (!multiple && value)) &&
+                !disabled && (
+                    <TouchableOpacity
+                        style={styles.clearButton}
+                        onPress={() => setValue(multiple ? [] : null)}
+                    >
+                        <Ionicons name="close-circle" size={20} color="#999" />
+                    </TouchableOpacity>
+                )}
             {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
     );
@@ -81,12 +109,18 @@ const styles = StyleSheet.create({
         backgroundColor: "#F5F5F5",
         borderColor: "#E0E0E0",
         borderRadius: 10,
-        maxHeight: 200,
+        maxHeight: 220, // ensures scroll
     },
     errorText: {
         color: "#dc3545",
         fontSize: 12,
         marginTop: 5,
+    },
+    clearButton: {
+        position: "absolute",
+        right: 35,
+        top: 40,
+        zIndex: 9999,
     },
 });
 
