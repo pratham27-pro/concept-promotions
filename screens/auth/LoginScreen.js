@@ -1,6 +1,7 @@
 import { useNavigation } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
     ActivityIndicator,
     Alert,
@@ -15,9 +16,14 @@ import {
     View,
 } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
+import { useAuth } from "../../context/AuthContext";
+
+const API_BASE_URL = "https://supreme-419p.onrender.com/api";
 
 const LoginScreen = () => {
     const navigation = useNavigation();
+    const { login } = useAuth();
+
     // Dropdown state
     const [open, setOpen] = useState(false);
     const [role, setRole] = useState(null);
@@ -28,10 +34,35 @@ const LoginScreen = () => {
     ]);
 
     // Form state
-    const [emailOrPhone, setEmailOrPhone] = useState("");
+    const [email, setEmail] = useState("");
+    const [contactNo, setContactNo] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Show different fields based on role
+    const getRequiredFields = () => {
+        if (role === "retailer") {
+            return {
+                needsEmail: true,
+                needsContactNo: true,
+                needsPassword: false,
+            };
+        } else if (role === "employee" || role === "client") {
+            return {
+                needsEmail: true,
+                needsContactNo: false,
+                needsPassword: true,
+            };
+        }
+        return {
+            needsEmail: false,
+            needsContactNo: false,
+            needsPassword: false,
+        };
+    };
+
+    const { needsEmail, needsContactNo, needsPassword } = getRequiredFields();
 
     const handleLogin = async () => {
         // Validation
@@ -39,11 +70,15 @@ const LoginScreen = () => {
             Alert.alert("Error", "Please select your role");
             return;
         }
-        if (!emailOrPhone) {
-            Alert.alert("Error", "Please enter your email or phone number");
+        if (needsEmail && !email) {
+            Alert.alert("Error", "Please enter your email");
             return;
         }
-        if (!password) {
+        if (needsContactNo && !contactNo) {
+            Alert.alert("Error", "Please enter your contact number");
+            return;
+        }
+        if (needsPassword && !password) {
             Alert.alert("Error", "Please enter your password");
             return;
         }
@@ -51,37 +86,40 @@ const LoginScreen = () => {
         setIsLoading(true);
 
         try {
-            // Determine if input is email or phone
-            const isEmail = emailOrPhone.includes("@");
+            let endpoint = "";
+            let requestBody = {};
 
-            // Your backend requires BOTH contactNo AND email
-            // So we need to handle this based on what user enters
-            const requestBody = {};
-
-            if (isEmail) {
-                // If user entered email, we need to also send a placeholder phone
-                // OR modify your backend to accept either field
-                requestBody.email = emailOrPhone;
-                requestBody.contactNo = password; // You'll need to handle this on backend
-            } else {
-                // If user entered phone number
-                requestBody.email = emailOrPhone;
-                requestBody.contactNo = password; // You'll need to handle this on backend
+            // Build endpoint and payload based on role
+            if (role === "retailer") {
+                endpoint = `${API_BASE_URL}/retailer/login`;
+                requestBody = {
+                    email: email.trim(),
+                    contactNo: contactNo.trim(),
+                };
+            } else if (role === "employee") {
+                endpoint = `${API_BASE_URL}/employee/employee/login`;
+                requestBody = {
+                    email: email.trim(),
+                    password: password,
+                };
+            } else if (role === "client") {
+                endpoint = `${API_BASE_URL}/client/admin/login`;
+                requestBody = {
+                    email: email.trim(),
+                    password: password,
+                };
             }
 
-            console.log("📤 Sending login request:", requestBody);
+            console.log("📤 Sending login request to:", endpoint);
+            console.log("📤 Payload:", requestBody);
 
-            // API call to login endpoint
-            const response = await fetch(
-                "https://supreme-419p.onrender.com/api/retailer/login",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(requestBody),
-                }
-            );
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(requestBody),
+            });
 
             const data = await response.json();
 
@@ -89,7 +127,7 @@ const LoginScreen = () => {
                 console.error("❌ Login Error:", data);
                 Alert.alert(
                     "Login Failed",
-                    data.message || "Invalid credentials"
+                    data.message || "Invalid credentials. Please try again."
                 );
                 setIsLoading(false);
                 return;
@@ -98,29 +136,26 @@ const LoginScreen = () => {
             // Login successful
             console.log("✅ Login successful:", data);
 
-            // Save token
-            // await AsyncStorage.setItem('userToken', data.token);
-            // await AsyncStorage.setItem('userRole', role);
-
-            // Navigate based on role
+            // ✅ Extract user ID based on role
+            let userId;
             if (role === "retailer") {
-                navigation.navigate("CreateRetailerProfile");
+                userId = data.retailer?.id || data.retailer?._id;
             } else if (role === "employee") {
-                Alert.alert(
-                    "Coming Soon",
-                    "Employee profile creation is under development"
-                );
+                userId = data.employee?.id || data.employee?._id;
             } else if (role === "client") {
-                Alert.alert(
-                    "Coming Soon",
-                    "Client profile creation is under development"
-                );
+                userId = data.client?.id || data.client?._id || data.admin?.id;
             }
+
+            // ✅ Use AuthContext to handle login and profile check
+            await login(data.token, role, userId);
+
+            // ✅ Navigation will be handled automatically by AppNavigator
+            // No need for manual navigation here!
         } catch (error) {
             console.error("❌ Network error:", error);
             Alert.alert(
-                "Error",
-                "Network error. Please check your internet connection."
+                "Network Error",
+                "Unable to connect to server. Please check your internet connection and try again."
             );
         } finally {
             setIsLoading(false);
@@ -130,7 +165,8 @@ const LoginScreen = () => {
     const handleForgotPassword = () => {
         Alert.alert(
             "Forgot Password",
-            "Password reset functionality will be added."
+            "Please contact your administrator to reset your password.",
+            [{ text: "OK" }]
         );
     };
 
@@ -147,12 +183,6 @@ const LoginScreen = () => {
             >
                 {/* Logo Section */}
                 <View style={styles.logoContainer}>
-                    {/* Replace this View with your actual logo */}
-                    {/* <Image
-            source={require('../../assets/images/logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          /> */}
                     <View style={styles.logoPlaceholder}>
                         <Image
                             source={require("../../assets/cpLogo.jpg")}
@@ -164,14 +194,14 @@ const LoginScreen = () => {
 
                 {/* Form Section */}
                 <View style={styles.formContainer}>
-                    <Text style={styles.title}>Welcome</Text>
+                    <Text style={styles.title}>Welcome Back</Text>
                     <Text style={styles.subtitle}>
                         Please login to continue
                     </Text>
 
                     {/* Role Dropdown */}
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Select Role</Text>
+                        <Text style={styles.label}>Select Role *</Text>
                         <DropDownPicker
                             open={open}
                             value={role}
@@ -179,7 +209,7 @@ const LoginScreen = () => {
                             setOpen={setOpen}
                             setValue={setRole}
                             setItems={setItems}
-                            placeholder="Select your role"
+                            placeholder="Choose your role"
                             style={styles.dropdown}
                             dropDownContainerStyle={styles.dropdownContainer}
                             placeholderStyle={styles.dropdownPlaceholder}
@@ -190,62 +220,90 @@ const LoginScreen = () => {
                             scrollViewProps={{
                                 nestedScrollEnabled: true,
                             }}
+                            disabled={isLoading}
                         />
                     </View>
 
-                    {/* Email/Phone Input */}
-                    <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>Email/Phone Number</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Enter email or phone number"
-                            placeholderTextColor="#999"
-                            value={emailOrPhone}
-                            onChangeText={setEmailOrPhone}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            editable={!isLoading}
-                        />
-                    </View>
-
-                    {/* Password Input */}
-                    <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                        <Text style={styles.label}>Password</Text>
-                        <View style={styles.passwordContainer}>
+                    {/* Email Input - Show for all roles */}
+                    {needsEmail && (
+                        <View style={[styles.inputGroup, { zIndex: 1 }]}>
+                            <Text style={styles.label}>Email *</Text>
                             <TextInput
-                                style={styles.passwordInput}
-                                placeholder="Enter password"
+                                style={styles.input}
+                                placeholder="Enter your email"
                                 placeholderTextColor="#999"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry={!showPassword}
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 editable={!isLoading}
                             />
-                            <TouchableOpacity
-                                style={styles.eyeIcon}
-                                onPress={() => setShowPassword(!showPassword)}
-                                disabled={isLoading}
-                            >
-                                <Text style={styles.eyeText}>
-                                    {showPassword ? "👁️" : "X"}
-                                </Text>
-                            </TouchableOpacity>
                         </View>
-                    </View>
+                    )}
 
-                    {/* Forgot Password */}
-                    <TouchableOpacity
-                        style={styles.forgotPassword}
-                        onPress={handleForgotPassword}
-                        disabled={isLoading}
-                    >
-                        <Text style={styles.forgotPasswordText}>
-                            Forgot Password?
-                        </Text>
-                    </TouchableOpacity>
+                    {/* Contact Number Input - Only for Retailer */}
+                    {needsContactNo && (
+                        <View style={[styles.inputGroup, { zIndex: 1 }]}>
+                            <Text style={styles.label}>Contact Number *</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter your contact number"
+                                placeholderTextColor="#999"
+                                value={contactNo}
+                                onChangeText={(text) =>
+                                    setContactNo(text.replace(/[^0-9]/g, ""))
+                                }
+                                keyboardType="phone-pad"
+                                maxLength={10}
+                                editable={!isLoading}
+                            />
+                        </View>
+                    )}
+
+                    {/* Password Input - Only for Employee & Client */}
+                    {needsPassword && (
+                        <View style={[styles.inputGroup, { zIndex: 1 }]}>
+                            <Text style={styles.label}>Password *</Text>
+                            <View style={styles.passwordContainer}>
+                                <TextInput
+                                    style={styles.passwordInput}
+                                    placeholder="Enter your password"
+                                    placeholderTextColor="#999"
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry={!showPassword}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    editable={!isLoading}
+                                />
+                                <TouchableOpacity
+                                    style={styles.eyeIcon}
+                                    onPress={() =>
+                                        setShowPassword(!showPassword)
+                                    }
+                                    disabled={isLoading}
+                                >
+                                    <Text style={styles.eyeText}>
+                                        {showPassword ? "👁️" : "👁️‍🗨️"}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Forgot Password - Only show for password-based login */}
+                    {needsPassword && (
+                        <TouchableOpacity
+                            style={styles.forgotPassword}
+                            onPress={handleForgotPassword}
+                            disabled={isLoading}
+                        >
+                            <Text style={styles.forgotPasswordText}>
+                                Forgot Password?
+                            </Text>
+                        </TouchableOpacity>
+                    )}
 
                     {/* Login Button */}
                     <TouchableOpacity
@@ -282,36 +340,25 @@ const styles = StyleSheet.create({
     },
     logoContainer: {
         alignItems: "center",
-        marginBottom: 50,
-    },
-    logo: {
-        width: 100,
-        height: 100,
+        marginBottom: 40,
     },
     logoPlaceholder: {
-        width: 100,
-        height: 100,
+        width: 120,
+        height: 120,
         backgroundColor: "#fff",
-        // borderRadius: 60,
+        borderRadius: 60,
         justifyContent: "center",
         alignItems: "center",
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 8,
     },
-    logoText: {
-        fontSize: 20,
-        fontWeight: "bold",
-        color: "#333",
-        letterSpacing: 1,
-    },
-    logoSubtext: {
-        fontSize: 12,
-        color: "#666",
-        marginTop: 4,
-        letterSpacing: 2,
+    logoImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
     },
     formContainer: {
         backgroundColor: "#fff",
@@ -392,14 +439,14 @@ const styles = StyleSheet.create({
         padding: 15,
     },
     eyeText: {
-        fontSize: 18,
+        fontSize: 20,
     },
     forgotPassword: {
         alignSelf: "flex-end",
         marginBottom: 24,
     },
     forgotPasswordText: {
-        color: "#007AFF",
+        color: "#E53935",
         fontSize: 14,
         fontWeight: "600",
     },
@@ -409,9 +456,16 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         alignItems: "center",
         justifyContent: "center",
+        shadowColor: "#E53935",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
     },
     loginButtonDisabled: {
-        backgroundColor: "#A0C9F5",
+        backgroundColor: "#FFCDD2",
+        shadowOpacity: 0,
+        elevation: 0,
     },
     loginButtonText: {
         color: "#fff",

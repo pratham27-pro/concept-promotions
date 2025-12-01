@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
     View,
     Text,
@@ -9,6 +9,8 @@ import {
     Linking,
     Alert,
     Platform,
+    ActivityIndicator,
+    RefreshControl,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -17,43 +19,197 @@ import {
 } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+
 import * as RootNavigation from "../../navigation/RootNavigation";
+
+const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+const SUPPORT_NUMBER = "1800123456"; // Replace with your actual number
 
 const RetailerDashboardScreen = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const tabBarHeight = useBottomTabBarHeight();
-    const [retailerName, setRetailerName] = useState("Hari");
-    const [campaigns, setCampaigns] = useState([
-        {
-            id: "1",
-            title: "Summer Sale Campaign",
-            description:
-                "Get 50% off on all summer products. Limited time offer for premium customers.",
-            startDate: "01/12/2025",
-            endDate: "31/12/2025",
-            image: "https://via.placeholder.com/300x150",
-            status: null, // null, 'accepted', 'rejected'
-            assignedEmployees: [
-                { name: "Rohit Sharma", phone: "9876543210" },
-                { name: "Anjali Verma", phone: "9123456780" },
-            ],
-        },
-        {
-            id: "2",
-            title: "Festive Diwali Offer",
-            description:
-                "Special festive discounts on electronics and home appliances.",
-            startDate: "15/11/2025",
-            endDate: "30/11/2025",
-            image: "https://via.placeholder.com/300x150",
-            status: null,
-            assignedEmployees: [{ name: "Priya Singh", phone: "9988776655" }],
-        },
-    ]);
 
-    const SUPPORT_NUMBER = "1800123456"; // Replace with your actual number
+    const [retailerName, setRetailerName] = useState("");
+    const [retailerId, setRetailerId] = useState("");
+    const [campaigns, setCampaigns] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    // Handle phone call
+    // Fetch campaigns on screen focus
+    useFocusEffect(
+        useCallback(() => {
+            fetchCampaigns();
+        }, [])
+    );
+
+    const fetchCampaigns = async (isRefreshing = false) => {
+        try {
+            if (!isRefreshing) setLoading(true);
+
+            const token = await AsyncStorage.getItem("userToken");
+            if (!token) {
+                Alert.alert("Error", "Please login again.");
+                navigation.replace("Login");
+                return;
+            }
+
+            const response = await fetch(`${API_BASE_URL}/retailer/campaigns`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to fetch campaigns");
+            }
+
+            // Set retailer info
+            setRetailerName(data.retailer.name);
+            setRetailerId(data.retailer.id);
+
+            // Transform campaigns data to match UI structure
+            const transformedCampaigns = data.campaigns.map((campaign) => {
+                // Find this retailer's status in the campaign
+                const retailerEntry = campaign.assignedRetailers?.find(
+                    (r) =>
+                        r.retailerId === data.retailer.id ||
+                        r.retailerId?._id === data.retailer.id
+                );
+
+                return {
+                    id: campaign._id,
+                    title: campaign.name || "Untitled Campaign",
+                    description: `${campaign.type || "Campaign"} - ${
+                        campaign.client || "Client"
+                    }`,
+                    startDate: formatDate(campaign.campaignStartDate),
+                    endDate: formatDate(campaign.campaignEndDate),
+                    image:
+                        campaign.image || "https://via.placeholder.com/300x150",
+                    status: retailerEntry?.status || null,
+                    assignedEmployees: campaign.assignedEmployees || [],
+                    campaignType: campaign.type,
+                    client: campaign.client,
+                    regions: campaign.regions || [],
+                    states: campaign.states || [],
+                    rawData: campaign,
+                };
+            });
+
+            setCampaigns(transformedCampaigns);
+            console.log("✅ Campaigns loaded:", transformedCampaigns.length);
+        } catch (error) {
+            console.error("Error fetching campaigns:", error);
+            Alert.alert("Error", "Failed to load campaigns. Please try again.");
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return "N/A";
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+    };
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchCampaigns(true);
+    };
+
+    const updateCampaignStatus = async (campaignId, status) => {
+        try {
+            const token = await AsyncStorage.getItem("userToken");
+            if (!token) {
+                Alert.alert("Error", "Please login again.");
+                navigation.replace("Login");
+                return;
+            }
+
+            const response = await fetch(
+                `${API_BASE_URL}/retailer/campaigns/${campaignId}/status`,
+                {
+                    method: "PUT",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ status }),
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to update status");
+            }
+
+            // Update local state
+            setCampaigns((prevCampaigns) =>
+                prevCampaigns.map((campaign) =>
+                    campaign.id === campaignId
+                        ? { ...campaign, status: status }
+                        : campaign
+                )
+            );
+
+            Alert.alert("Success", `Campaign ${status} successfully!`);
+
+            console.log("✅ Campaign status updated:", status);
+        } catch (error) {
+            console.error("Error updating status:", error);
+            Alert.alert(
+                "Error",
+                error.message || "Failed to update campaign status"
+            );
+        }
+    };
+
+    const handleAccept = (campaignId) => {
+        Alert.alert(
+            "Accept Campaign",
+            "Are you sure you want to accept this campaign?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Accept",
+                    onPress: () => updateCampaignStatus(campaignId, "accepted"),
+                },
+            ]
+        );
+    };
+
+    const handleReject = (campaignId) => {
+        Alert.alert(
+            "Reject Campaign",
+            "Are you sure you want to reject this campaign?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Reject",
+                    style: "destructive",
+                    onPress: () => updateCampaignStatus(campaignId, "rejected"),
+                },
+            ]
+        );
+    };
+
+    const handleViewDetails = (campaign) => {
+        RootNavigation.navigate("CampaignDetails", {
+            campaign: campaign.rawData || campaign,
+        });
+    };
+
     const makePhoneCall = () => {
         let phoneNumber = "";
         if (Platform.OS === "android") {
@@ -73,36 +229,25 @@ const RetailerDashboardScreen = ({ navigation }) => {
             .catch((err) => console.error("Error opening phone:", err));
     };
 
-    // Handle notification bell
     const handleNotifications = () => {
         Alert.alert("Notifications", "You have no new notifications");
     };
 
-    // Handle campaign acceptance
-    const handleAccept = (campaignId) => {
-        setCampaigns((prevCampaigns) =>
-            prevCampaigns.map((campaign) =>
-                campaign.id === campaignId
-                    ? { ...campaign, status: "accepted" }
-                    : campaign
-            )
+    if (loading) {
+        return (
+            <SafeAreaView
+                style={[
+                    styles.container,
+                    { justifyContent: "center", alignItems: "center" },
+                ]}
+            >
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={{ marginTop: 10, color: "#666" }}>
+                    Loading campaigns...
+                </Text>
+            </SafeAreaView>
         );
-    };
-
-    // Handle campaign rejection
-    const handleReject = (campaignId) => {
-        setCampaigns((prevCampaigns) =>
-            prevCampaigns.map((campaign) =>
-                campaign.id === campaignId
-                    ? { ...campaign, status: "rejected" }
-                    : campaign
-            )
-        );
-    };
-    // Handle view details
-    const handleViewDetails = (campaign) => {
-        RootNavigation.navigate("CampaignDetails", { campaign });
-    };
+    }
 
     return (
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
@@ -110,27 +255,30 @@ const RetailerDashboardScreen = ({ navigation }) => {
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{
-                    paddingBottom: tabBarHeight + 20, // Add extra padding for tab bar
+                    paddingBottom: tabBarHeight + 20,
                 }}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={["#007AFF"]}
+                        tintColor="#007AFF"
+                    />
+                }
             >
                 {/* Logo Section */}
                 <View style={styles.logoContainer}>
-                    {/* Replace with your actual logo */}
                     <View style={styles.logoPlaceholder}>
                         <Text style={styles.logoText}>CONCEPT</Text>
                         <Text style={styles.logoSubtext}>PROMOTIONS</Text>
                     </View>
-                    {/* Uncomment when you have actual logo */}
-                    {/* <Image
-            source={require('../../assets/images/logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          /> */}
                 </View>
 
                 {/* Header Section */}
                 <View style={styles.header}>
-                    <Text style={styles.greeting}>Hello, {retailerName}!</Text>
+                    <Text style={styles.greeting}>
+                        Hello, {retailerName || "Retailer"}!
+                    </Text>
                     <View style={styles.headerIcons}>
                         <TouchableOpacity
                             style={styles.iconButton}
@@ -155,130 +303,167 @@ const RetailerDashboardScreen = ({ navigation }) => {
                 <View style={styles.campaignsSection}>
                     <Text style={styles.sectionTitle}>Ongoing Campaigns</Text>
 
-                    {campaigns.map((campaign) => (
-                        <View key={campaign.id} style={styles.campaignCard}>
-                            {/* Campaign Image */}
-                            <Image
-                                source={{ uri: campaign.image }}
-                                style={styles.campaignImage}
+                    {campaigns.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Ionicons
+                                name="document-text-outline"
+                                size={60}
+                                color="#ccc"
                             />
+                            <Text style={styles.emptyText}>
+                                No campaigns assigned yet
+                            </Text>
+                            <Text style={styles.emptySubtext}>
+                                Pull down to refresh
+                            </Text>
+                        </View>
+                    ) : (
+                        campaigns.map((campaign) => (
+                            <View key={campaign.id} style={styles.campaignCard}>
+                                {/* Campaign Image */}
+                                <Image
+                                    source={{ uri: campaign.image }}
+                                    style={styles.campaignImage}
+                                />
 
-                            {/* Campaign Content */}
-                            <View style={styles.campaignContent}>
-                                <Text style={styles.campaignTitle}>
-                                    {campaign.title}
-                                </Text>
-                                <Text
-                                    style={styles.campaignDescription}
-                                    numberOfLines={2}
-                                >
-                                    {campaign.description}
-                                </Text>
-                                <Text style={styles.campaignDates}>
-                                    📅 {campaign.startDate} - {campaign.endDate}
-                                </Text>
-                            </View>
-
-                            {/* Action Buttons */}
-                            <View style={styles.actionButtons}>
-                                <TouchableOpacity
-                                    style={styles.viewDetailsButton}
-                                    onPress={() => handleViewDetails(campaign)}
-                                >
-                                    <Text style={styles.viewDetailsText}>
-                                        View Details
+                                {/* Campaign Content */}
+                                <View style={styles.campaignContent}>
+                                    <Text style={styles.campaignTitle}>
+                                        {campaign.title}
                                     </Text>
-                                </TouchableOpacity>
+                                    <Text
+                                        style={styles.campaignDescription}
+                                        numberOfLines={2}
+                                    >
+                                        {campaign.description}
+                                    </Text>
+                                    <Text style={styles.campaignDates}>
+                                        📅 {campaign.startDate} -{" "}
+                                        {campaign.endDate}
+                                    </Text>
+                                </View>
 
-                                {campaign.status === null && (
-                                    <View style={styles.acceptRejectButtons}>
-                                        <TouchableOpacity
-                                            style={styles.acceptButton}
-                                            onPress={() =>
-                                                handleAccept(campaign.id)
-                                            }
+                                {/* Action Buttons */}
+                                <View style={styles.actionButtons}>
+                                    <TouchableOpacity
+                                        style={styles.viewDetailsButton}
+                                        onPress={() =>
+                                            handleViewDetails(campaign)
+                                        }
+                                    >
+                                        <Text style={styles.viewDetailsText}>
+                                            View Details
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    {campaign.status === null && (
+                                        <View
+                                            style={styles.acceptRejectButtons}
                                         >
-                                            <Text
-                                                style={styles.acceptButtonText}
+                                            <TouchableOpacity
+                                                style={styles.acceptButton}
+                                                onPress={() =>
+                                                    handleAccept(campaign.id)
+                                                }
                                             >
-                                                Accept
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={styles.rejectButton}
-                                            onPress={() =>
-                                                handleReject(campaign.id)
-                                            }
-                                        >
-                                            <Text
-                                                style={styles.rejectButtonText}
+                                                <Text
+                                                    style={
+                                                        styles.acceptButtonText
+                                                    }
+                                                >
+                                                    Accept
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.rejectButton}
+                                                onPress={() =>
+                                                    handleReject(campaign.id)
+                                                }
                                             >
-                                                Reject
+                                                <Text
+                                                    style={
+                                                        styles.rejectButtonText
+                                                    }
+                                                >
+                                                    Reject
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* Status Messages */}
+                                {campaign.status === "accepted" && (
+                                    <View style={styles.statusContainer}>
+                                        <View style={styles.acceptedStatus}>
+                                            <Ionicons
+                                                name="checkmark-circle"
+                                                size={20}
+                                                color="#28a745"
+                                            />
+                                            <Text style={styles.acceptedText}>
+                                                ✓ Campaign Accepted
                                             </Text>
-                                        </TouchableOpacity>
+                                        </View>
+
+                                        {/* Assigned Employees */}
+                                        {campaign.assignedEmployees.length >
+                                            0 && (
+                                            <View style={styles.employeesCard}>
+                                                <Text
+                                                    style={
+                                                        styles.employeesTitle
+                                                    }
+                                                >
+                                                    Assigned Employees:
+                                                </Text>
+                                                {campaign.assignedEmployees.map(
+                                                    (employee, index) => (
+                                                        <View
+                                                            key={index}
+                                                            style={
+                                                                styles.employeeRow
+                                                            }
+                                                        >
+                                                            <Ionicons
+                                                                name="person"
+                                                                size={16}
+                                                                color="#666"
+                                                            />
+                                                            <Text
+                                                                style={
+                                                                    styles.employeeName
+                                                                }
+                                                            >
+                                                                {employee.name ||
+                                                                    "Employee"}{" "}
+                                                                —{" "}
+                                                                {employee.phone ||
+                                                                    "N/A"}
+                                                            </Text>
+                                                        </View>
+                                                    )
+                                                )}
+                                            </View>
+                                        )}
+                                    </View>
+                                )}
+
+                                {campaign.status === "rejected" && (
+                                    <View style={styles.rejectedStatus}>
+                                        <Ionicons
+                                            name="close-circle"
+                                            size={20}
+                                            color="#dc3545"
+                                        />
+                                        <Text style={styles.rejectedText}>
+                                            ✗ Campaign Rejected
+                                        </Text>
                                     </View>
                                 )}
                             </View>
-
-                            {/* Status Messages */}
-                            {campaign.status === "accepted" && (
-                                <View style={styles.statusContainer}>
-                                    <View style={styles.acceptedStatus}>
-                                        <Ionicons
-                                            name="checkmark-circle"
-                                            size={20}
-                                            color="#28a745"
-                                        />
-                                        <Text style={styles.acceptedText}>
-                                            ✓ Campaign Accepted
-                                        </Text>
-                                    </View>
-
-                                    {/* Assigned Employees */}
-                                    <View style={styles.employeesCard}>
-                                        <Text style={styles.employeesTitle}>
-                                            Assigned Employees:
-                                        </Text>
-                                        {campaign.assignedEmployees.map(
-                                            (employee, index) => (
-                                                <View
-                                                    key={index}
-                                                    style={styles.employeeRow}
-                                                >
-                                                    <Ionicons
-                                                        name="person"
-                                                        size={16}
-                                                        color="#666"
-                                                    />
-                                                    <Text
-                                                        style={
-                                                            styles.employeeName
-                                                        }
-                                                    >
-                                                        {employee.name} —{" "}
-                                                        {employee.phone}
-                                                    </Text>
-                                                </View>
-                                            )
-                                        )}
-                                    </View>
-                                </View>
-                            )}
-
-                            {campaign.status === "rejected" && (
-                                <View style={styles.rejectedStatus}>
-                                    <Ionicons
-                                        name="close-circle"
-                                        size={20}
-                                        color="#dc3545"
-                                    />
-                                    <Text style={styles.rejectedText}>
-                                        ✗ Campaign Rejected
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-                    ))}
+                        ))
+                    )}
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -312,10 +497,6 @@ const styles = StyleSheet.create({
         fontSize: 8,
         color: "#666",
         marginTop: 2,
-    },
-    logo: {
-        width: 100,
-        height: 60,
     },
     header: {
         flexDirection: "row",
@@ -352,6 +533,22 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "#333",
         marginBottom: 15,
+    },
+    emptyState: {
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 60,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: "#999",
+        marginTop: 15,
+        fontWeight: "600",
+    },
+    emptySubtext: {
+        fontSize: 14,
+        color: "#ccc",
+        marginTop: 5,
     },
     campaignCard: {
         backgroundColor: "#fff",
