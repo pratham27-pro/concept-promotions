@@ -11,22 +11,29 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { AuthProvider } from "./context/AuthContext";
+import AppNavigator from "./navigation/AppNavigator"; // ✅ Import AppNavigator
+
 // Import all your screens
 import LoginScreen from "./screens/auth/LoginScreen";
-
 import CreateEmployeeProfileScreen from "./screens/employee/CreateEmployeeProfileScreen";
 import EmployeeDashboardScreen from "./screens/employee/EmployeeDashboardScreen";
-
-import CompleteRetailerProfileScreen from "./screens/retailer/CompleteRetailerProfileScreen";
+import CreateRetailerProfileScreen from "./screens/retailer/CreateRetailerProfileScreen";
 import RetailerDashboardScreen from "./screens/retailer/RetailerDashboardScreen";
-
 import ClientHomeScreen from "./screens/client/ClientHomeScreen";
+import UpdateEmployeeProfileScreen from "./screens/employee/UpdateEmployeeProfileScreen"; // Add if you want to test it
 
-// Mock navigation screens selector
 const DevScreenSelector = () => {
     const [selectedScreen, setSelectedScreen] = useState(null);
 
     const screens = [
+        {
+            name: "🔐 Full App Flow (With Auth)",
+            component: null, // Special case - will use AppNavigator
+            icon: "apps",
+            color: "#E4002B",
+            isFullApp: true,
+        },
         {
             name: "Login Screen",
             component: LoginScreen,
@@ -46,8 +53,14 @@ const DevScreenSelector = () => {
             color: "#4CAF50",
         },
         {
+            name: "Update Employee Profile",
+            component: UpdateEmployeeProfileScreen,
+            icon: "create",
+            color: "#607D8B",
+        },
+        {
             name: "Complete Retailer Profile",
-            component: CompleteRetailerProfileScreen,
+            component: CreateRetailerProfileScreen,
             icon: "store",
             color: "#FF9800",
         },
@@ -65,11 +78,29 @@ const DevScreenSelector = () => {
         },
     ];
 
+    // ✅ If "Full App Flow" is selected, use AppNavigator
     if (selectedScreen !== null) {
-        const ScreenComponent = screens[selectedScreen].component;
+        const selectedItem = screens[selectedScreen];
+
+        if (selectedItem.isFullApp) {
+            return (
+                <View style={styles.screenContainer}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => setSelectedScreen(null)}
+                    >
+                        <Ionicons name="arrow-back" size={24} color="#fff" />
+                        <Text style={styles.backButtonText}>Back to Menu</Text>
+                    </TouchableOpacity>
+                    <AppNavigator />
+                </View>
+            );
+        }
+
+        // Individual screen view
+        const ScreenComponent = selectedItem.component;
         return (
             <View style={styles.screenContainer}>
-                {/* Back button */}
                 <TouchableOpacity
                     style={styles.backButton}
                     onPress={() => setSelectedScreen(null)}
@@ -78,73 +109,87 @@ const DevScreenSelector = () => {
                     <Text style={styles.backButtonText}>Back to Menu</Text>
                 </TouchableOpacity>
 
-                {/* Render selected screen */}
                 <ScreenComponent
-                    navigation={{ goBack: () => setSelectedScreen(null) }}
+                    navigation={{
+                        goBack: () => setSelectedScreen(null),
+                        navigate: (screen) => {
+                            const index = screens.findIndex(
+                                (s) => s.component?.name === screen
+                            );
+                            if (index !== -1) {
+                                setSelectedScreen(index);
+                            }
+                        },
+                        replace: (screen) => {
+                            const index = screens.findIndex(
+                                (s) => s.component?.name === screen
+                            );
+                            if (index !== -1) {
+                                setSelectedScreen(index);
+                            }
+                        },
+                    }}
                 />
             </View>
         );
     }
 
     return (
-        <SafeAreaProvider>
-            <View style={styles.container}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>🚀 Dev Mode</Text>
-                    <Text style={styles.headerSubtitle}>
-                        Select a screen to test
-                    </Text>
-                </View>
-
-                {/* Screen selector */}
-                <ScrollView
-                    style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
-                >
-                    {screens.map((screen, index) => (
-                        <TouchableOpacity
-                            key={index}
-                            style={[
-                                styles.screenButton,
-                                { borderLeftColor: screen.color },
-                            ]}
-                            onPress={() => setSelectedScreen(index)}
-                            activeOpacity={0.7}
-                        >
-                            <View
-                                style={[
-                                    styles.iconContainer,
-                                    { backgroundColor: screen.color },
-                                ]}
-                            >
-                                <Ionicons
-                                    name={screen.icon}
-                                    size={24}
-                                    color="#fff"
-                                />
-                            </View>
-                            <Text style={styles.screenButtonText}>
-                                {screen.name}
-                            </Text>
-                            <Ionicons
-                                name="chevron-forward"
-                                size={20}
-                                color="#999"
-                            />
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-
-                {/* Footer */}
-                <View style={styles.footer}>
-                    <Text style={styles.footerText}>
-                        ⚠️ Remember to switch to production mode before
-                        deploying!
-                    </Text>
-                </View>
+        <View style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>🚀 Dev Mode</Text>
+                <Text style={styles.headerSubtitle}>
+                    Select a screen to test
+                </Text>
             </View>
-        </SafeAreaProvider>
+
+            {/* Screen selector */}
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+            >
+                {screens.map((screen, index) => (
+                    <TouchableOpacity
+                        key={index}
+                        style={[
+                            styles.screenButton,
+                            { borderLeftColor: screen.color },
+                        ]}
+                        onPress={() => setSelectedScreen(index)}
+                        activeOpacity={0.7}
+                    >
+                        <View
+                            style={[
+                                styles.iconContainer,
+                                { backgroundColor: screen.color },
+                            ]}
+                        >
+                            <Ionicons
+                                name={screen.icon}
+                                size={24}
+                                color="#fff"
+                            />
+                        </View>
+                        <Text style={styles.screenButtonText}>
+                            {screen.name}
+                        </Text>
+                        <Ionicons
+                            name="chevron-forward"
+                            size={20}
+                            color="#999"
+                        />
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+
+            {/* Footer */}
+            <View style={styles.footer}>
+                <Text style={styles.footerText}>
+                    ⚠️ Remember to switch to production mode before deploying!
+                </Text>
+            </View>
+        </View>
     );
 };
 
@@ -237,8 +282,12 @@ const styles = StyleSheet.create({
 
 export default function App() {
     return (
-        <NavigationContainer>
-            <DevScreenSelector />
-        </NavigationContainer>
+        <SafeAreaProvider>
+            <AuthProvider>
+                <NavigationContainer>
+                    <DevScreenSelector />
+                </NavigationContainer>
+            </AuthProvider>
+        </SafeAreaProvider>
     );
 }

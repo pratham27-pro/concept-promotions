@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     View,
     Text,
@@ -8,10 +8,13 @@ import {
     TextInput,
     Alert,
     Platform,
+    ActivityIndicator,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 
 // Import reusable components
 import Header from "../../components/common/Header";
@@ -24,33 +27,41 @@ import GradientButton from "../../components/common/GradientButton";
 import PennyTransferModal from "../../components/PennyTransferModal";
 import SuccessModal from "../../components/SuccessModal";
 
-const API_URL = "https://supreme-419p.onrender.com/api/admin/employees";
+// Import AuthContext
+import { useAuth } from "../../context/AuthContext";
 
-const CreateEmployeeProfileScreen = ({ navigation }) => {
-    // Worker Type Selection
-    const [workerType, setWorkerType] = useState(""); // 'Permanent' or 'Contractual'
+const API_BASE_URL = "https://supreme-419p.onrender.com/api";
 
-    // === PERMANENT EMPLOYEE STATES ===
-    // Personal Details
-    const [p_name, setPName] = useState("");
-    const [p_email, setPEmail] = useState("");
-    const [p_dob, setPDob] = useState("");
-    const [p_phone, setPPhone] = useState("");
-    const [p_highestQualification, setPHighestQualification] = useState("");
-    const [p_alternatePhone, setPAlternatePhone] = useState("");
+const CompleteEmployeeProfileScreen = ({ navigation }) => {
+    const { markProfileComplete, userProfile, refreshProfile } = useAuth();
+
+    // Loading states
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [employeeType, setEmployeeType] = useState(""); // Permanent or Contractual
+    const [profileData, setProfileData] = useState(null);
+
+    // Personal Details (Read-only from admin)
+    const [name, setName] = useState("");
+    const [email, setEmail] = useState("");
+    const [phone, setPhone] = useState("");
+
+    // Personal Details (Employee fills)
+    const [dob, setDob] = useState("");
+    const [highestQualification, setHighestQualification] = useState("");
+    const [alternatePhone, setAlternatePhone] = useState("");
 
     // Gender & Marital Status Dropdowns
     const [genderOpen, setGenderOpen] = useState(false);
-    const [p_gender, setPGender] = useState(null);
+    const [gender, setGender] = useState(null);
     const [genderOptions] = useState([
         { label: "Male", value: "Male" },
         { label: "Female", value: "Female" },
         { label: "Other", value: "Other" },
-        { label: "Prefer not to say", value: "Prefer not to say" },
     ]);
 
     const [maritalOpen, setMaritalOpen] = useState(false);
-    const [p_maritalStatus, setPMaritalStatus] = useState(null);
+    const [maritalStatus, setMaritalStatus] = useState(null);
     const [maritalOptions] = useState([
         { label: "Unmarried", value: "Unmarried" },
         { label: "Married", value: "Married" },
@@ -71,31 +82,35 @@ const CreateEmployeeProfileScreen = ({ navigation }) => {
     const [p_city, setPCity] = useState("");
     const [p_pincode, setPPincode] = useState("");
 
-    // Family Background
-    const [p_fathersName, setPFathersName] = useState("");
-    const [p_fatherDob, setPFatherDob] = useState("");
-    const [p_motherName, setPMotherName] = useState("");
-    const [p_motherDob, setPMotherDob] = useState("");
-    const [p_spouseName, setPSpouseName] = useState("");
-    const [p_spouseDob, setPSpouseDob] = useState("");
-    const [p_child1Name, setPChild1Name] = useState("");
-    const [p_child1Dob, setPChild1Dob] = useState("");
-    const [p_child2Name, setPChild2Name] = useState("");
-    const [p_child2Dob, setPChild2Dob] = useState("");
+    // Family Background (Only for Permanent)
+    const [fathersName, setFathersName] = useState("");
+    const [fatherDob, setFatherDob] = useState("");
+    const [motherName, setMotherName] = useState("");
+    const [motherDob, setMotherDob] = useState("");
+    const [spouseName, setSpouseName] = useState("");
+    const [spouseDob, setSpouseDob] = useState("");
+    const [child1Name, setChild1Name] = useState("");
+    const [child1Dob, setChild1Dob] = useState("");
+    const [child2Name, setChild2Name] = useState("");
+    const [child2Dob, setChild2Dob] = useState("");
 
     // Identification & Bank
-    const [p_aadhaar, setPAadhaar] = useState("");
-    const [p_pan, setPPan] = useState("");
-    const [p_uan, setPUan] = useState("");
-    const [p_pf, setPPf] = useState("");
-    const [p_esi, setPEsi] = useState("");
-    const [p_esiDispensary, setPEsiDispensary] = useState("");
-    const [p_bankAccount, setPBankAccount] = useState("");
-    const [p_ifsc, setPIfsc] = useState("");
-    const [p_branchName, setPBranchName] = useState("");
-    const [p_bankName, setPBankName] = useState("");
+    const [aadhaarNumber, setAadhaarNumber] = useState("");
+    const [panNumber, setPanNumber] = useState("");
+    const [uanNumber, setUanNumber] = useState("");
+    const [pfNumber, setPfNumber] = useState("");
+    const [esiNumber, setEsiNumber] = useState("");
+    const [esiDispensary, setEsiDispensary] = useState("");
+    const [contractLength, setContractLength] = useState("");
 
-    // Work Experience
+    // Bank Details
+    const [bankAccount, setBankAccount] = useState("");
+    const [confirmBankAccount, setConfirmBankAccount] = useState("");
+    const [ifsc, setIfsc] = useState("");
+    const [branchName, setBranchName] = useState("");
+    const [bankName, setBankName] = useState("");
+
+    // Work Experience (Only for Permanent)
     const [experiences, setExperiences] = useState([
         {
             organization: "",
@@ -106,50 +121,171 @@ const CreateEmployeeProfileScreen = ({ navigation }) => {
         },
     ]);
 
-    // Permanent Files
-    const [p_personPhoto, setPPersonPhoto] = useState(null);
-    const [p_aadhaarFile1, setPAadhaarFile1] = useState(null);
-    const [p_aadhaarFile2, setPAadhaarFile2] = useState(null);
-    const [p_panFile, setPPanFile] = useState(null);
-    const [p_bankProofFile, setPBankProofFile] = useState(null);
-    const [p_familyPhoto, setPFamilyPhoto] = useState(null);
-    const [p_pfForm, setPPfForm] = useState(null);
-    const [p_esiForm, setPEsiForm] = useState(null);
-    const [p_employmentForm, setPEmploymentForm] = useState(null);
-    const [p_cv, setPCv] = useState(null);
+    // Files
+    const [personPhoto, setPersonPhoto] = useState(null);
+    const [aadhaarFile1, setAadhaarFile1] = useState(null);
+    const [aadhaarFile2, setAadhaarFile2] = useState(null);
+    const [panFile, setPanFile] = useState(null);
+    const [bankProofFile, setBankProofFile] = useState(null);
+    const [familyPhoto, setFamilyPhoto] = useState(null);
+    const [pfForm, setPfForm] = useState(null);
+    const [esiForm, setEsiForm] = useState(null);
+    const [employmentForm, setEmploymentForm] = useState(null);
+    const [cv, setCv] = useState(null);
 
-    // === CONTRACTUAL EMPLOYEE STATES ===
-    const [c_name, setCName] = useState("");
-    const [c_dob, setCDob] = useState("");
-    const [c_phone, setCPhone] = useState("");
-    const [c_aadhaar, setCAadhaar] = useState("");
-    const [c_pan, setCPan] = useState("");
-    const [c_contractLength, setCContractLength] = useState("");
-
-    // Contractual Address
-    const [c_address1, setCAddress1] = useState("");
-    const [c_address2, setCAddress2] = useState("");
-    const [c_state, setCState] = useState("");
-    const [c_city, setCCity] = useState("");
-    const [c_pincode, setCPincode] = useState("");
-
-    // Contractual Bank
-    const [c_bankAccount, setCBankAccount] = useState("");
-    const [c_ifsc, setCIfsc] = useState("");
-    const [c_branchName, setCBranchName] = useState("");
-    const [c_bankName, setCBankName] = useState("");
-
-    // Contractual Files
-    const [c_personPhoto, setCPersonPhoto] = useState(null);
-    const [c_aadhaarFile1, setCAadhaarFile1] = useState(null);
-    const [c_aadhaarFile2, setCAadhaarFile2] = useState(null);
-    const [c_panFile, setCPanFile] = useState(null);
-    const [c_bankProofFile, setCBankProofFile] = useState(null);
-
-    // Form states
-    const [submitting, setSubmitting] = useState(false);
+    // Modals
     const [showPennyModal, setShowPennyModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+    // Password Change
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+
+    // Fetch employee profile on mount
+    useFocusEffect(
+        useCallback(() => {
+            fetchEmployeeProfile();
+        }, [])
+    );
+
+    const fetchEmployeeProfile = async () => {
+        try {
+            setLoading(true);
+
+            // ✅ Use profile from context if available
+            if (userProfile) {
+                console.log("📋 Using profile from context:", userProfile);
+
+                // ✅ Now userProfile should have the data at root level
+                if (userProfile.name) setName(userProfile.name);
+                if (userProfile.email) setEmail(userProfile.email);
+                if (userProfile.phone) setPhone(userProfile.phone);
+
+                setEmployeeType(userProfile.employeeType || "");
+                prefillForm(userProfile);
+                setLoading(false);
+                return;
+            }
+
+            // Otherwise fetch from API
+            const token = await AsyncStorage.getItem("userToken");
+            if (!token) {
+                Alert.alert("Error", "Please login again.");
+                navigation.replace("Login");
+                return;
+            }
+
+            console.log("🔍 Fetching profile from API...");
+            const response = await fetch(`${API_BASE_URL}/employee/profile`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            const responseData = await response.json();
+            console.log("🔍 Profile API response:", responseData);
+
+            if (response.ok && responseData) {
+                // ✅ Extract employee from nested response
+                const data = responseData.employee || responseData;
+
+                setProfileData(data);
+
+                // Set all fields including basic ones
+                if (data.name) setName(data.name);
+                if (data.email) setEmail(data.email);
+                if (data.phone) setPhone(data.phone);
+
+                setEmployeeType(data.employeeType || "");
+                prefillForm(data);
+
+                console.log("✅ Employee profile loaded");
+            } else {
+                throw new Error(
+                    responseData.message || "Failed to fetch profile"
+                );
+            }
+        } catch (error) {
+            console.error("Error fetching profile:", error);
+            Alert.alert("Error", "Failed to load profile. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const prefillForm = (data) => {
+        // Pre-fill existing data from admin
+        if (data.name) setName(data.name);
+        if (data.email) setEmail(data.email);
+        if (data.phone) setPhone(data.phone);
+        if (data.dob) setDob(data.dob);
+        if (data.gender) setGender(data.gender);
+        if (data.alternatePhone) setAlternatePhone(data.alternatePhone);
+        if (data.highestQualification)
+            setHighestQualification(data.highestQualification);
+        if (data.maritalStatus) setMaritalStatus(data.maritalStatus);
+
+        // Addresses
+        if (data.correspondenceAddress) {
+            setCoAddress1(data.correspondenceAddress.addressLine1 || "");
+            setCoAddress2(data.correspondenceAddress.addressLine2 || "");
+            setCoState(data.correspondenceAddress.state || "");
+            setCoCity(data.correspondenceAddress.city || "");
+            setCoPincode(data.correspondenceAddress.pincode || "");
+        }
+
+        if (data.permanentAddress) {
+            setPAddress1(data.permanentAddress.addressLine1 || "");
+            setPAddress2(data.permanentAddress.addressLine2 || "");
+            setPState(data.permanentAddress.state || "");
+            setPCity(data.permanentAddress.city || "");
+            setPPincode(data.permanentAddress.pincode || "");
+        }
+
+        // Family (Permanent only)
+        if (data.employeeType === "Permanent") {
+            if (data.fathersName) setFathersName(data.fathersName);
+            if (data.fatherDob) setFatherDob(data.fatherDob);
+            if (data.motherName) setMotherName(data.motherName);
+            if (data.motherDob) setMotherDob(data.motherDob);
+            if (data.spouseName) setSpouseName(data.spouseName);
+            if (data.spouseDob) setSpouseDob(data.spouseDob);
+            if (data.child1Name) setChild1Name(data.child1Name);
+            if (data.child1Dob) setChild1Dob(data.child1Dob);
+            if (data.child2Name) setChild2Name(data.child2Name);
+            if (data.child2Dob) setChild2Dob(data.child2Dob);
+
+            if (data.experiences && Array.isArray(data.experiences)) {
+                setExperiences(data.experiences);
+            }
+        }
+
+        // IDs
+        if (data.aadhaarNumber) setAadhaarNumber(data.aadhaarNumber);
+        if (data.panNumber) setPanNumber(data.panNumber);
+        if (data.uanNumber) setUanNumber(data.uanNumber);
+        if (data.pfNumber) setPfNumber(data.pfNumber);
+        if (data.esiNumber) setEsiNumber(data.esiNumber);
+        if (data.esiDispensary) setEsiDispensary(data.esiDispensary);
+        if (data.contractLength) setContractLength(data.contractLength);
+
+        // Bank
+        if (data.bankDetails) {
+            setBankName(data.bankDetails.bankName || "");
+            setBankAccount(data.bankDetails.accountNumber || "");
+            setConfirmBankAccount(data.bankDetails.accountNumber || "");
+            setIfsc(data.bankDetails.IFSC || "");
+            setBranchName(data.bankDetails.branchName || "");
+        }
+
+        // Photos (if already uploaded)
+        if (data.personPhoto) {
+            setPersonPhoto({ uri: data.personPhoto });
+        }
+    };
 
     // Handle checkbox for same address
     const handleCheckboxChange = () => {
@@ -196,110 +332,345 @@ const CreateEmployeeProfileScreen = ({ navigation }) => {
         setExperiences(updated);
     };
 
-    // Notify Employee
-    const handleNotify = () => {
-        Alert.alert("Success", "Notification sent to employee!");
+    // Validate form
+    const validateForm = () => {
+        // Basic validation
+        if (!gender) {
+            Alert.alert("Error", "Please select your gender");
+            return false;
+        }
+        if (!dob) {
+            Alert.alert("Error", "Please enter your date of birth");
+            return false;
+        }
+        if (!aadhaarNumber || aadhaarNumber.length !== 12) {
+            Alert.alert("Error", "Please enter valid 12-digit Aadhaar number");
+            return false;
+        }
+
+        // Address validation
+        if (!co_address1 || !co_city || !co_state || !co_pincode) {
+            Alert.alert(
+                "Error",
+                "Please fill correspondence address completely"
+            );
+            return false;
+        }
+        if (!p_address1 || !p_city || !p_state || !p_pincode) {
+            Alert.alert("Error", "Please fill permanent address completely");
+            return false;
+        }
+
+        // Bank validation
+        if (!bankAccount) {
+            Alert.alert("Error", "Please enter bank account number");
+            return false;
+        }
+        if (bankAccount !== confirmBankAccount) {
+            Alert.alert("Error", "Bank account numbers do not match");
+            return false;
+        }
+        if (!ifsc || ifsc.length !== 11) {
+            Alert.alert("Error", "Please enter valid 11-character IFSC code");
+            return false;
+        }
+        if (!bankName || !branchName) {
+            Alert.alert("Error", "Please fill all bank details");
+            return false;
+        }
+
+        // Permanent employee specific validation
+        if (employeeType === "Permanent") {
+            if (!panNumber || panNumber.length !== 10) {
+                Alert.alert(
+                    "Error",
+                    "Please enter valid 10-character PAN number"
+                );
+                return false;
+            }
+            if (!highestQualification) {
+                Alert.alert("Error", "Please enter highest qualification");
+                return false;
+            }
+            if (!maritalStatus) {
+                Alert.alert("Error", "Please select marital status");
+                return false;
+            }
+            if (!fathersName || !motherName) {
+                Alert.alert("Error", "Please enter parents' names");
+                return false;
+            }
+            if (!uanNumber || !pfNumber || !esiNumber) {
+                Alert.alert("Error", "Please enter UAN, PF, and ESI numbers");
+                return false;
+            }
+        }
+
+        // Password validation (optional but recommended)
+        if (newPassword) {
+            if (newPassword.length < 6) {
+                Alert.alert("Error", "Password must be at least 6 characters");
+                return false;
+            }
+            if (newPassword !== confirmPassword) {
+                Alert.alert("Error", "Passwords do not match");
+                return false;
+            }
+        }
+
+        // File validation
+        if (!personPhoto) {
+            Alert.alert("Error", "Please upload your photo");
+            return false;
+        }
+        if (!aadhaarFile1 || !aadhaarFile2) {
+            Alert.alert("Error", "Please upload both sides of Aadhaar");
+            return false;
+        }
+        if (!bankProofFile) {
+            Alert.alert("Error", "Please upload bank proof");
+            return false;
+        }
+
+        if (employeeType === "Permanent") {
+            if (!panFile) {
+                Alert.alert("Error", "Please upload PAN card");
+                return false;
+            }
+            if (!pfForm || !esiForm) {
+                Alert.alert("Error", "Please upload PF and ESI forms");
+                return false;
+            }
+        }
+
+        return true;
     };
 
-    // Validate and submit
+    // Submit form
     const handleSubmit = async () => {
-        if (!workerType) {
-            Alert.alert("Error", "Please select worker type");
-            return;
-        }
-
-        if (workerType === "Permanent") {
-            if (!p_name || !p_email || !p_phone) {
-                Alert.alert(
-                    "Error",
-                    "Please fill all required fields (Name, Email, Phone)"
-                );
-                return;
-            }
-            if (!p_personPhoto || !p_aadhaarFile1 || !p_panFile) {
-                Alert.alert(
-                    "Error",
-                    "Please upload required documents (Photo, Aadhaar, PAN)"
-                );
-                return;
-            }
-        } else {
-            if (!c_name || !c_phone) {
-                Alert.alert(
-                    "Error",
-                    "Please fill all required fields (Name, Phone)"
-                );
-                return;
-            }
-            if (!c_personPhoto || !c_aadhaarFile1) {
-                Alert.alert(
-                    "Error",
-                    "Please upload required documents (Photo, Aadhaar)"
-                );
-                return;
-            }
-        }
+        if (!validateForm()) return;
 
         setSubmitting(true);
 
         try {
-            // Build payload
-            const payload = {
-                name: workerType === "Permanent" ? p_name : c_name,
-                email: p_email,
-                contactNo: workerType === "Permanent" ? p_phone : c_phone,
-                gender: workerType === "Permanent" ? p_gender : "",
-                address:
-                    workerType === "Permanent"
-                        ? `${co_address1}, ${co_city}, ${co_state}, ${co_pincode}`
-                        : `${c_address1}, ${c_city}, ${c_state}, ${c_pincode}`,
-                dob: workerType === "Permanent" ? p_dob : c_dob,
-                employeeType: workerType,
+            const token = await AsyncStorage.getItem("userToken");
+            if (!token) {
+                Alert.alert("Error", "Please login again.");
+                navigation.replace("Login");
+                return;
+            }
+
+            // Debug: Log all file states
+            console.log("📸 personPhoto:", personPhoto);
+            console.log("📄 aadhaarFile1:", aadhaarFile1);
+            console.log("📄 aadhaarFile2:", aadhaarFile2);
+            console.log("📄 panFile:", panFile);
+            console.log("📄 bankProofFile:", bankProofFile);
+            console.log("📄 familyPhoto:", familyPhoto);
+            console.log("📄 pfForm:", pfForm);
+            console.log("📄 esiForm:", esiForm);
+            console.log("📄 employmentForm:", employmentForm);
+            console.log("📄 cv:", cv);
+
+            const formData = new FormData();
+
+            // Basic fields
+            formData.append("gender", gender);
+            formData.append("dob", dob);
+            if (alternatePhone)
+                formData.append("alternatePhone", alternatePhone);
+            formData.append("aadhaarNumber", aadhaarNumber);
+
+            // ✅ Correspondence Address
+            formData.append("correspondenceAddress.addressLine1", co_address1);
+            if (co_address2)
+                formData.append(
+                    "correspondenceAddress.addressLine2",
+                    co_address2
+                );
+            formData.append("correspondenceAddress.state", co_state);
+            formData.append("correspondenceAddress.city", co_city);
+            formData.append("correspondenceAddress.pincode", co_pincode);
+
+            // ✅ Permanent Address - FIXED field names
+            formData.append("permanentAddress.addressLine1", p_address1);
+            if (p_address2)
+                formData.append("permanentAddress.addressLine2", p_address2);
+            formData.append("permanentAddress.state", p_state);
+            formData.append("permanentAddress.city", p_city);
+            formData.append("permanentAddress.pincode", p_pincode);
+
+            // Bank details
+            formData.append("bankDetails.bankName", bankName);
+            formData.append("bankDetails.accountNumber", bankAccount);
+            formData.append("bankDetails.ifsc", ifsc);
+            formData.append("bankDetails.branchName", branchName);
+
+            // Permanent employee specific fields
+            if (employeeType === "Permanent") {
+                formData.append("highestQualification", highestQualification);
+                formData.append("maritalStatus", maritalStatus);
+                formData.append("panNumber", panNumber);
+                formData.append("fathersName", fathersName);
+                if (fatherDob) formData.append("fatherDob", fatherDob);
+                formData.append("motherName", motherName);
+                if (motherDob) formData.append("motherDob", motherDob);
+                if (spouseName) formData.append("spouseName", spouseName);
+                if (spouseDob) formData.append("spouseDob", spouseDob);
+                if (child1Name) formData.append("child1Name", child1Name);
+                if (child1Dob) formData.append("child1Dob", child1Dob);
+                if (child2Name) formData.append("child2Name", child2Name);
+                if (child2Dob) formData.append("child2Dob", child2Dob);
+                formData.append("uanNumber", uanNumber);
+                formData.append("pfNumber", pfNumber);
+                formData.append("esiNumber", esiNumber);
+                if (esiDispensary)
+                    formData.append("esiDispensary", esiDispensary);
+                formData.append("experiences", JSON.stringify(experiences));
+            }
+
+            // Contractual specific
+            if (employeeType === "Contractual" && contractLength) {
+                formData.append("contractLength", contractLength);
+            }
+
+            // Password change
+            if (newPassword) {
+                formData.append("newPassword", newPassword);
+            }
+
+            // ✅ Helper function to append files
+            const appendFile = (
+                fieldName,
+                file,
+                defaultType = "application/pdf"
+            ) => {
+                if (!file || !file.uri) {
+                    console.log(`⚠️ Skipping ${fieldName} - no file or uri`);
+                    return;
+                }
+
+                // Don't upload if it's an existing URL
+                if (file.uri.startsWith("http")) {
+                    console.log(`⚠️ Skipping ${fieldName} - already uploaded`);
+                    return;
+                }
+
+                console.log(`✅ Appending ${fieldName}:`, file);
+
+                formData.append(fieldName, {
+                    uri: file.uri,
+                    name:
+                        file.name ||
+                        `${fieldName}.${
+                            defaultType === "image/jpeg" ? "jpg" : "pdf"
+                        }`,
+                    type: file.mimeType || file.type || defaultType,
+                });
             };
 
-            const response = await fetch(API_URL, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
+            // ✅ Append all files
+            appendFile("personPhoto", personPhoto, "image/jpeg");
+            appendFile("aadhaarFront", aadhaarFile1, "application/pdf");
+            appendFile("aadhaarBack", aadhaarFile2, "application/pdf");
 
-            const result = await response.json();
-
-            if (response.ok) {
-                // Show penny transfer modal
-                setShowPennyModal(true);
-            } else {
-                Alert.alert(
-                    "Error",
-                    result.message || "Failed to create employee profile"
-                );
+            if (employeeType === "Permanent") {
+                appendFile("panCard", panFile, "application/pdf");
+                appendFile("familyPhoto", familyPhoto, "image/jpeg");
+                appendFile("pfForm", pfForm, "application/pdf");
+                appendFile("esiForm", esiForm, "application/pdf");
+                appendFile("employmentForm", employmentForm, "application/pdf");
+                appendFile("cv", cv, "application/pdf");
             }
+
+            appendFile("bankProof", bankProofFile, "application/pdf");
+
+            console.log("📤 Submitting profile update...");
+
+            const response = await fetch(
+                `${API_BASE_URL}/employee/employee/profile`,
+                {
+                    method: "PUT",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        // Don't set Content-Type - let FormData set it
+                    },
+                    body: formData,
+                }
+            );
+
+            console.log("📥 Response status:", response.status);
+
+            const responseText = await response.text();
+            console.log("📥 Raw response:", responseText);
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("❌ Failed to parse JSON:", e);
+                throw new Error("Server did not return valid JSON");
+            }
+
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to update profile");
+            }
+
+            console.log("✅ Profile updated successfully:", data);
+            setShowPennyModal(true);
         } catch (error) {
-            console.error("Error:", error);
-            Alert.alert("Error", "Server error. Please try again.");
+            console.error("❌ Error:", error);
+            Alert.alert(
+                "Error",
+                error.message || "Failed to update profile. Please try again."
+            );
         } finally {
             setSubmitting(false);
         }
     };
 
     const handlePennyConfirm = (received) => {
-        if (received) {
-            setShowSuccessModal(true);
-        }
+        setShowPennyModal(false);
+        if (received) setShowSuccessModal(true);
     };
+
+    const handleSuccessClose = async () => {
+        setShowSuccessModal(false);
+
+        // ✅ Mark profile as completed in context
+        await markProfileComplete();
+
+        // Navigation will happen automatically via AppNavigator
+        console.log("✅ Profile completed");
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView
+                style={[
+                    styles.container,
+                    { justifyContent: "center", alignItems: "center" },
+                ]}
+            >
+                <ActivityIndicator size="large" color="#E4002B" />
+                <Text style={{ marginTop: 10, color: "#666" }}>
+                    Loading profile...
+                </Text>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <StatusBar style="dark" />
 
-            {/* Header */}
             <Header showBackButton={false} />
 
-            {/* Add heading below header */}
             <View style={styles.headingContainer}>
-                <Text style={styles.pageHeading}>Employee Registration</Text>
+                <Text style={styles.pageHeading}>Complete Your Profile</Text>
+                <Text style={styles.pageSubheading}>
+                    {employeeType} Employee
+                </Text>
             </View>
 
             <ScrollView
@@ -308,434 +679,332 @@ const CreateEmployeeProfileScreen = ({ navigation }) => {
                 nestedScrollEnabled={true}
             >
                 <View style={styles.formContainer}>
-                    {/* Title */}
-                    <Text style={styles.mainTitle}>
-                        Create Employee Profile
-                    </Text>
-
-                    {/* Worker Type Selection */}
-                    <View style={styles.workerTypeSection}>
-                        <Text style={styles.sectionLabel}>
-                            Select Type of Worker
+                    {/* Read-only basic info */}
+                    <View style={styles.infoCard}>
+                        <Text style={styles.infoLabel}>
+                            Name: <Text style={styles.infoValue}>{name}</Text>
                         </Text>
-
-                        <View style={styles.workerTypeContainer}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.workerTypeCard,
-                                    workerType === "Permanent" &&
-                                        styles.workerTypeCardActive,
-                                ]}
-                                onPress={() => setWorkerType("Permanent")}
-                            >
-                                <Ionicons
-                                    name="briefcase"
-                                    size={32}
-                                    color={
-                                        workerType === "Permanent"
-                                            ? "#E4002B"
-                                            : "#666"
-                                    }
-                                />
-                                <Text
-                                    style={[
-                                        styles.workerTypeTitle,
-                                        workerType === "Permanent" &&
-                                            styles.workerTypeTitleActive,
-                                    ]}
-                                >
-                                    Permanent
-                                </Text>
-                                <Text style={styles.workerTypeSubtitle}>
-                                    Full-time employee
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[
-                                    styles.workerTypeCard,
-                                    workerType === "Contractual" &&
-                                        styles.workerTypeCardActive,
-                                ]}
-                                onPress={() => setWorkerType("Contractual")}
-                            >
-                                <Ionicons
-                                    name="document-text"
-                                    size={32}
-                                    color={
-                                        workerType === "Contractual"
-                                            ? "#E4002B"
-                                            : "#666"
-                                    }
-                                />
-                                <Text
-                                    style={[
-                                        styles.workerTypeTitle,
-                                        workerType === "Contractual" &&
-                                            styles.workerTypeTitleActive,
-                                    ]}
-                                >
-                                    Contractual
-                                </Text>
-                                <Text style={styles.workerTypeSubtitle}>
-                                    Fixed-term / temporary
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                        <Text style={styles.infoLabel}>
+                            Email: <Text style={styles.infoValue}>{email}</Text>
+                        </Text>
+                        <Text style={styles.infoLabel}>
+                            Phone: <Text style={styles.infoValue}>{phone}</Text>
+                        </Text>
                     </View>
 
-                    {/* PERMANENT EMPLOYEE FORM */}
-                    {workerType === "Permanent" && (
-                        <>
-                            {/* Personal Details */}
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>
-                                    Personal Details
-                                </Text>
+                    {/* Personal Details */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>
+                            Personal Details
+                        </Text>
 
-                                <PhotoPicker
-                                    label="Passport Size Photograph"
-                                    photo={p_personPhoto}
-                                    onPhotoSelect={setPPersonPhoto}
-                                    onPhotoRemove={() => setPPersonPhoto(null)}
-                                    required={true}
-                                    size="large"
-                                />
+                        <PhotoPicker
+                            label="Upload Your Photo"
+                            photo={personPhoto}
+                            onPhotoSelect={setPersonPhoto}
+                            onPhotoRemove={() => setPersonPhoto(null)}
+                            required={true}
+                            size="large"
+                        />
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Full Name (as per Aadhaar) *"
-                                    placeholderTextColor="#999"
-                                    value={p_name}
-                                    onChangeText={setPName}
-                                />
+                        <SearchableDropdown
+                            label="Gender"
+                            placeholder="Select gender"
+                            open={genderOpen}
+                            value={gender}
+                            items={genderOptions}
+                            setOpen={setGenderOpen}
+                            setValue={setGender}
+                            required={true}
+                            zIndex={6000}
+                        />
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Email *"
-                                    placeholderTextColor="#999"
-                                    value={p_email}
-                                    onChangeText={setPEmail}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Date of Birth (DD/MM/YYYY) *"
+                            placeholderTextColor="#999"
+                            value={dob}
+                            onChangeText={setDob}
+                        />
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Phone Number *"
-                                    placeholderTextColor="#999"
-                                    value={p_phone}
-                                    onChangeText={(text) =>
-                                        setPPhone(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="phone-pad"
-                                    maxLength={10}
-                                />
-
-                                <GradientButton
-                                    title="Notify Employee"
-                                    onPress={handleNotify}
-                                    colors={["#E4002B", "#c82333"]}
-                                    icon="notifications-outline"
-                                    size="small"
-                                    style={{ marginBottom: 15 }}
-                                />
-
+                        {employeeType === "Permanent" && (
+                            <>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Highest Qualification *"
                                     placeholderTextColor="#999"
-                                    value={p_highestQualification}
-                                    onChangeText={setPHighestQualification}
-                                />
-
-                                <SearchableDropdown
-                                    label="Gender"
-                                    placeholder="Select gender"
-                                    open={genderOpen}
-                                    value={p_gender}
-                                    items={genderOptions}
-                                    setOpen={setGenderOpen}
-                                    setValue={setPGender}
-                                    required={true}
-                                    zIndex={6000}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Date of Birth *"
-                                    placeholderTextColor="#999"
-                                    value={p_dob}
-                                    onChangeText={setPDob}
-                                    onFocus={() =>
-                                        Alert.alert(
-                                            "Date Format",
-                                            "Please enter date as DD/MM/YYYY"
-                                        )
-                                    }
+                                    value={highestQualification}
+                                    onChangeText={setHighestQualification}
                                 />
 
                                 <SearchableDropdown
                                     label="Marital Status"
                                     placeholder="Select marital status"
                                     open={maritalOpen}
-                                    value={p_maritalStatus}
+                                    value={maritalStatus}
                                     items={maritalOptions}
                                     setOpen={setMaritalOpen}
-                                    setValue={setPMaritalStatus}
+                                    setValue={setMaritalStatus}
                                     required={true}
                                     zIndex={5000}
                                 />
+                            </>
+                        )}
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Alternate Phone Number"
-                                    placeholderTextColor="#999"
-                                    value={p_alternatePhone}
-                                    onChangeText={(text) =>
-                                        setPAlternatePhone(
-                                            text.replace(/\D/g, "")
-                                        )
-                                    }
-                                    keyboardType="phone-pad"
-                                    maxLength={10}
-                                />
-                            </View>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Alternate Phone Number"
+                            placeholderTextColor="#999"
+                            value={alternatePhone}
+                            onChangeText={(text) =>
+                                setAlternatePhone(text.replace(/\D/g, ""))
+                            }
+                            keyboardType="phone-pad"
+                            maxLength={10}
+                        />
+                    </View>
 
-                            {/* Address Details */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    Correspondence Address
-                                </Text>
+                    {/* Address Details */}
+                    <View style={[styles.section, { zIndex: 1 }]}>
+                        <Text style={styles.sectionTitle}>
+                            Correspondence Address
+                        </Text>
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Address Line 1 *"
-                                    placeholderTextColor="#999"
-                                    value={co_address1}
-                                    onChangeText={setCoAddress1}
-                                />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Address Line 1 *"
+                            placeholderTextColor="#999"
+                            value={co_address1}
+                            onChangeText={setCoAddress1}
+                        />
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Address Line 2"
-                                    placeholderTextColor="#999"
-                                    value={co_address2}
-                                    onChangeText={setCoAddress2}
-                                />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Address Line 2"
+                            placeholderTextColor="#999"
+                            value={co_address2}
+                            onChangeText={setCoAddress2}
+                        />
 
-                                <View style={styles.row}>
+                        <View style={styles.row}>
+                            <TextInput
+                                style={[styles.input, styles.halfInput]}
+                                placeholder="State *"
+                                placeholderTextColor="#999"
+                                value={co_state}
+                                onChangeText={setCoState}
+                            />
+
+                            <TextInput
+                                style={[styles.input, styles.halfInput]}
+                                placeholder="City *"
+                                placeholderTextColor="#999"
+                                value={co_city}
+                                onChangeText={setCoCity}
+                            />
+                        </View>
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Pincode *"
+                            placeholderTextColor="#999"
+                            value={co_pincode}
+                            onChangeText={(text) =>
+                                setCoPincode(text.replace(/\D/g, ""))
+                            }
+                            keyboardType="number-pad"
+                            maxLength={6}
+                        />
+
+                        <TouchableOpacity
+                            style={styles.checkboxContainer}
+                            onPress={handleCheckboxChange}
+                        >
+                            <Ionicons
+                                name={
+                                    sameAsCorrespondence
+                                        ? "checkbox"
+                                        : "square-outline"
+                                }
+                                size={24}
+                                color="#E4002B"
+                            />
+                            <Text style={styles.checkboxLabel}>
+                                Same as Correspondence Address
+                            </Text>
+                        </TouchableOpacity>
+
+                        <Text style={styles.sectionTitle}>
+                            Permanent Address
+                        </Text>
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Address Line 1 *"
+                            placeholderTextColor="#999"
+                            value={p_address1}
+                            onChangeText={setPAddress1}
+                        />
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Address Line 2"
+                            placeholderTextColor="#999"
+                            value={p_address2}
+                            onChangeText={setPAddress2}
+                        />
+
+                        <View style={styles.row}>
+                            <TextInput
+                                style={[styles.input, styles.halfInput]}
+                                placeholder="State *"
+                                placeholderTextColor="#999"
+                                value={p_state}
+                                onChangeText={setPState}
+                            />
+
+                            <TextInput
+                                style={[styles.input, styles.halfInput]}
+                                placeholder="City *"
+                                placeholderTextColor="#999"
+                                value={p_city}
+                                onChangeText={setPCity}
+                            />
+                        </View>
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Pincode *"
+                            placeholderTextColor="#999"
+                            value={p_pincode}
+                            onChangeText={(text) =>
+                                setPPincode(text.replace(/\D/g, ""))
+                            }
+                            keyboardType="number-pad"
+                            maxLength={6}
+                        />
+                    </View>
+
+                    {/* Family Background - Only for Permanent */}
+                    {employeeType === "Permanent" && (
+                        <View style={[styles.section, { zIndex: 1 }]}>
+                            <Text style={styles.sectionTitle}>
+                                Family Background
+                            </Text>
+
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Father's Name *"
+                                placeholderTextColor="#999"
+                                value={fathersName}
+                                onChangeText={setFathersName}
+                            />
+
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Father's DOB (DD/MM/YYYY)"
+                                placeholderTextColor="#999"
+                                value={fatherDob}
+                                onChangeText={setFatherDob}
+                            />
+
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Mother's Name *"
+                                placeholderTextColor="#999"
+                                value={motherName}
+                                onChangeText={setMotherName}
+                            />
+
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Mother's DOB (DD/MM/YYYY)"
+                                placeholderTextColor="#999"
+                                value={motherDob}
+                                onChangeText={setMotherDob}
+                            />
+
+                            {maritalStatus === "Married" && (
+                                <>
                                     <TextInput
-                                        style={[styles.input, styles.halfInput]}
-                                        placeholder="State *"
+                                        style={styles.input}
+                                        placeholder="Spouse Name"
                                         placeholderTextColor="#999"
-                                        value={co_state}
-                                        onChangeText={setCoState}
+                                        value={spouseName}
+                                        onChangeText={setSpouseName}
                                     />
 
                                     <TextInput
-                                        style={[styles.input, styles.halfInput]}
-                                        placeholder="City *"
+                                        style={styles.input}
+                                        placeholder="Spouse DOB (DD/MM/YYYY)"
                                         placeholderTextColor="#999"
-                                        value={co_city}
-                                        onChangeText={setCoCity}
-                                    />
-                                </View>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Pincode *"
-                                    placeholderTextColor="#999"
-                                    value={co_pincode}
-                                    onChangeText={(text) =>
-                                        setCoPincode(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="number-pad"
-                                    maxLength={6}
-                                />
-
-                                {/* Checkbox */}
-                                <TouchableOpacity
-                                    style={styles.checkboxContainer}
-                                    onPress={handleCheckboxChange}
-                                >
-                                    <Ionicons
-                                        name={
-                                            sameAsCorrespondence
-                                                ? "checkbox"
-                                                : "square-outline"
-                                        }
-                                        size={24}
-                                        color="#E4002B"
-                                    />
-                                    <Text style={styles.checkboxLabel}>
-                                        Same as Correspondence Address
-                                    </Text>
-                                </TouchableOpacity>
-
-                                <Text style={styles.sectionTitle}>
-                                    Permanent Address
-                                </Text>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Address Line 1 *"
-                                    placeholderTextColor="#999"
-                                    value={p_address1}
-                                    onChangeText={setPAddress1}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Address Line 2"
-                                    placeholderTextColor="#999"
-                                    value={p_address2}
-                                    onChangeText={setPAddress2}
-                                />
-
-                                <View style={styles.row}>
-                                    <TextInput
-                                        style={[styles.input, styles.halfInput]}
-                                        placeholder="State *"
-                                        placeholderTextColor="#999"
-                                        value={p_state}
-                                        onChangeText={setPState}
+                                        value={spouseDob}
+                                        onChangeText={setSpouseDob}
                                     />
 
                                     <TextInput
-                                        style={[styles.input, styles.halfInput]}
-                                        placeholder="City *"
+                                        style={styles.input}
+                                        placeholder="Child 1 Name"
                                         placeholderTextColor="#999"
-                                        value={p_city}
-                                        onChangeText={setPCity}
+                                        value={child1Name}
+                                        onChangeText={setChild1Name}
                                     />
-                                </View>
 
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Child 1 DOB (DD/MM/YYYY)"
+                                        placeholderTextColor="#999"
+                                        value={child1Dob}
+                                        onChangeText={setChild1Dob}
+                                    />
+
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Child 2 Name"
+                                        placeholderTextColor="#999"
+                                        value={child2Name}
+                                        onChangeText={setChild2Name}
+                                    />
+
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Child 2 DOB (DD/MM/YYYY)"
+                                        placeholderTextColor="#999"
+                                        value={child2Dob}
+                                        onChangeText={setChild2Dob}
+                                    />
+                                </>
+                            )}
+                        </View>
+                    )}
+
+                    {/* Identification & Bank */}
+                    <View style={[styles.section, { zIndex: 1 }]}>
+                        <Text style={styles.sectionTitle}>
+                            Identification Details
+                        </Text>
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Aadhaar Number (12 digits) *"
+                            placeholderTextColor="#999"
+                            value={aadhaarNumber}
+                            onChangeText={(text) =>
+                                setAadhaarNumber(text.replace(/\D/g, ""))
+                            }
+                            keyboardType="number-pad"
+                            maxLength={12}
+                        />
+
+                        {employeeType === "Permanent" && (
+                            <>
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Pincode *"
+                                    placeholder="PAN Number (10 characters) *"
                                     placeholderTextColor="#999"
-                                    value={p_pincode}
+                                    value={panNumber}
                                     onChangeText={(text) =>
-                                        setPPincode(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="number-pad"
-                                    maxLength={6}
-                                />
-                            </View>
-
-                            {/* Family Background */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    Family Background
-                                </Text>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Father's Name *"
-                                    placeholderTextColor="#999"
-                                    value={p_fathersName}
-                                    onChangeText={setPFathersName}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Father's DOB (DD/MM/YYYY) *"
-                                    placeholderTextColor="#999"
-                                    value={p_fatherDob}
-                                    onChangeText={setPFatherDob}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Mother's Name *"
-                                    placeholderTextColor="#999"
-                                    value={p_motherName}
-                                    onChangeText={setPMotherName}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Mother's DOB (DD/MM/YYYY) *"
-                                    placeholderTextColor="#999"
-                                    value={p_motherDob}
-                                    onChangeText={setPMotherDob}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Spouse Name (if applicable)"
-                                    placeholderTextColor="#999"
-                                    value={p_spouseName}
-                                    onChangeText={setPSpouseName}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Spouse DOB (DD/MM/YYYY)"
-                                    placeholderTextColor="#999"
-                                    value={p_spouseDob}
-                                    onChangeText={setPSpouseDob}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Child 1 Name"
-                                    placeholderTextColor="#999"
-                                    value={p_child1Name}
-                                    onChangeText={setPChild1Name}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Child 1 DOB (DD/MM/YYYY)"
-                                    placeholderTextColor="#999"
-                                    value={p_child1Dob}
-                                    onChangeText={setPChild1Dob}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Child 2 Name"
-                                    placeholderTextColor="#999"
-                                    value={p_child2Name}
-                                    onChangeText={setPChild2Name}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Child 2 DOB (DD/MM/YYYY)"
-                                    placeholderTextColor="#999"
-                                    value={p_child2Dob}
-                                    onChangeText={setPChild2Dob}
-                                />
-                            </View>
-
-                            {/* Identification & Bank */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    Identification & Bank Details
-                                </Text>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Aadhaar Number *"
-                                    placeholderTextColor="#999"
-                                    value={p_aadhaar}
-                                    onChangeText={(text) =>
-                                        setPAadhaar(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="number-pad"
-                                    maxLength={12}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="PAN Number *"
-                                    placeholderTextColor="#999"
-                                    value={p_pan}
-                                    onChangeText={(text) =>
-                                        setPPan(text.toUpperCase())
+                                        setPanNumber(text.toUpperCase())
                                     }
                                     autoCapitalize="characters"
                                     maxLength={10}
@@ -745,553 +1014,375 @@ const CreateEmployeeProfileScreen = ({ navigation }) => {
                                     style={styles.input}
                                     placeholder="UAN Number *"
                                     placeholderTextColor="#999"
-                                    value={p_uan}
-                                    onChangeText={setPUan}
+                                    value={uanNumber}
+                                    onChangeText={setUanNumber}
                                 />
 
                                 <TextInput
                                     style={styles.input}
                                     placeholder="PF Number *"
                                     placeholderTextColor="#999"
-                                    value={p_pf}
-                                    onChangeText={setPPf}
+                                    value={pfNumber}
+                                    onChangeText={setPfNumber}
                                 />
 
                                 <TextInput
                                     style={styles.input}
                                     placeholder="ESI Number *"
                                     placeholderTextColor="#999"
-                                    value={p_esi}
-                                    onChangeText={setPEsi}
+                                    value={esiNumber}
+                                    onChangeText={setEsiNumber}
                                 />
 
                                 <TextInput
                                     style={styles.input}
                                     placeholder="ESI Dispensary Location"
                                     placeholderTextColor="#999"
-                                    value={p_esiDispensary}
-                                    onChangeText={setPEsiDispensary}
+                                    value={esiDispensary}
+                                    onChangeText={setEsiDispensary}
                                 />
+                            </>
+                        )}
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Bank Account Number *"
-                                    placeholderTextColor="#999"
-                                    value={p_bankAccount}
-                                    onChangeText={(text) =>
-                                        setPBankAccount(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="number-pad"
-                                />
+                        {employeeType === "Contractual" && (
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Contract Length (e.g., 6 months)"
+                                placeholderTextColor="#999"
+                                value={contractLength}
+                                onChangeText={setContractLength}
+                            />
+                        )}
+                    </View>
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="IFSC Code *"
-                                    placeholderTextColor="#999"
-                                    value={p_ifsc}
-                                    onChangeText={(text) =>
-                                        setPIfsc(text.toUpperCase())
-                                    }
-                                    autoCapitalize="characters"
-                                    maxLength={11}
-                                />
+                    {/* Bank Details */}
+                    <View style={[styles.section, { zIndex: 1 }]}>
+                        <Text style={styles.sectionTitle}>Bank Details</Text>
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Bank Name *"
-                                    placeholderTextColor="#999"
-                                    value={p_bankName}
-                                    onChangeText={setPBankName}
-                                />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Bank Name *"
+                            placeholderTextColor="#999"
+                            value={bankName}
+                            onChangeText={setBankName}
+                        />
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Branch Name *"
-                                    placeholderTextColor="#999"
-                                    value={p_branchName}
-                                    onChangeText={setPBranchName}
-                                />
-                            </View>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Account Number *"
+                            placeholderTextColor="#999"
+                            value={bankAccount}
+                            onChangeText={(text) =>
+                                setBankAccount(text.replace(/\D/g, ""))
+                            }
+                            keyboardType="number-pad"
+                        />
 
-                            {/* Work Experience */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    Prior Work Experience
-                                </Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Confirm Account Number *"
+                            placeholderTextColor="#999"
+                            value={confirmBankAccount}
+                            onChangeText={(text) =>
+                                setConfirmBankAccount(text.replace(/\D/g, ""))
+                            }
+                            keyboardType="number-pad"
+                        />
 
-                                {experiences.map((exp, index) => (
-                                    <View
-                                        key={index}
-                                        style={styles.experienceCard}
-                                    >
-                                        {experiences.length > 1 && (
-                                            <TouchableOpacity
-                                                style={styles.removeExpButton}
-                                                onPress={() =>
-                                                    removeExperience(index)
-                                                }
-                                            >
-                                                <Ionicons
-                                                    name="trash-outline"
-                                                    size={20}
-                                                    color="#dc3545"
-                                                />
-                                            </TouchableOpacity>
-                                        )}
+                        <TextInput
+                            style={styles.input}
+                            placeholder="IFSC Code (11 characters) *"
+                            placeholderTextColor="#999"
+                            value={ifsc}
+                            onChangeText={(text) => setIfsc(text.toUpperCase())}
+                            autoCapitalize="characters"
+                            maxLength={11}
+                        />
 
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Organization Name *"
-                                            placeholderTextColor="#999"
-                                            value={exp.organization}
-                                            onChangeText={(text) =>
-                                                updateExperience(
-                                                    index,
-                                                    "organization",
-                                                    text
-                                                )
-                                            }
-                                        />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Branch Name *"
+                            placeholderTextColor="#999"
+                            value={branchName}
+                            onChangeText={setBranchName}
+                        />
+                    </View>
 
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Designation *"
-                                            placeholderTextColor="#999"
-                                            value={exp.designation}
-                                            onChangeText={(text) =>
-                                                updateExperience(
-                                                    index,
-                                                    "designation",
-                                                    text
-                                                )
-                                            }
-                                        />
+                    {/* Work Experience - Only for Permanent */}
+                    {employeeType === "Permanent" && (
+                        <View style={[styles.section, { zIndex: 1 }]}>
+                            <Text style={styles.sectionTitle}>
+                                Prior Work Experience
+                            </Text>
 
-                                        <View style={styles.row}>
-                                            <TextInput
-                                                style={[
-                                                    styles.input,
-                                                    styles.halfInput,
-                                                ]}
-                                                placeholder="From (DD/MM/YYYY) *"
-                                                placeholderTextColor="#999"
-                                                value={exp.from}
-                                                onChangeText={(text) =>
-                                                    updateExperience(
-                                                        index,
-                                                        "from",
-                                                        text
-                                                    )
-                                                }
-                                            />
-
-                                            <TextInput
-                                                style={[
-                                                    styles.input,
-                                                    styles.halfInput,
-                                                ]}
-                                                placeholder="To (DD/MM/YYYY)"
-                                                placeholderTextColor="#999"
-                                                value={exp.to}
-                                                onChangeText={(text) =>
-                                                    updateExperience(
-                                                        index,
-                                                        "to",
-                                                        text
-                                                    )
-                                                }
-                                                editable={!exp.currentlyWorking}
-                                            />
-                                        </View>
-
+                            {experiences.map((exp, index) => (
+                                <View key={index} style={styles.experienceCard}>
+                                    {experiences.length > 1 && (
                                         <TouchableOpacity
-                                            style={styles.checkboxContainer}
+                                            style={styles.removeExpButton}
                                             onPress={() =>
-                                                updateExperience(
-                                                    index,
-                                                    "currentlyWorking",
-                                                    !exp.currentlyWorking
-                                                )
+                                                removeExperience(index)
                                             }
                                         >
                                             <Ionicons
-                                                name={
-                                                    exp.currentlyWorking
-                                                        ? "checkbox"
-                                                        : "square-outline"
-                                                }
-                                                size={24}
-                                                color="#E4002B"
+                                                name="trash-outline"
+                                                size={20}
+                                                color="#dc3545"
                                             />
-                                            <Text style={styles.checkboxLabel}>
-                                                Currently Working Here
-                                            </Text>
                                         </TouchableOpacity>
-                                    </View>
-                                ))}
+                                    )}
 
-                                <TouchableOpacity
-                                    style={styles.addExpButton}
-                                    onPress={addExperience}
-                                >
-                                    <Ionicons
-                                        name="add-circle-outline"
-                                        size={24}
-                                        color="#E4002B"
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Organization Name"
+                                        placeholderTextColor="#999"
+                                        value={exp.organization}
+                                        onChangeText={(text) =>
+                                            updateExperience(
+                                                index,
+                                                "organization",
+                                                text
+                                            )
+                                        }
                                     />
-                                    <Text style={styles.addExpText}>
-                                        Add Another Experience
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
 
-                            {/* File Uploads */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    File Uploads
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Designation"
+                                        placeholderTextColor="#999"
+                                        value={exp.designation}
+                                        onChangeText={(text) =>
+                                            updateExperience(
+                                                index,
+                                                "designation",
+                                                text
+                                            )
+                                        }
+                                    />
+
+                                    <View style={styles.row}>
+                                        <TextInput
+                                            style={[
+                                                styles.input,
+                                                styles.halfInput,
+                                            ]}
+                                            placeholder="From (DD/MM/YYYY)"
+                                            placeholderTextColor="#999"
+                                            value={exp.from}
+                                            onChangeText={(text) =>
+                                                updateExperience(
+                                                    index,
+                                                    "from",
+                                                    text
+                                                )
+                                            }
+                                        />
+
+                                        <TextInput
+                                            style={[
+                                                styles.input,
+                                                styles.halfInput,
+                                            ]}
+                                            placeholder="To (DD/MM/YYYY)"
+                                            placeholderTextColor="#999"
+                                            value={exp.to}
+                                            onChangeText={(text) =>
+                                                updateExperience(
+                                                    index,
+                                                    "to",
+                                                    text
+                                                )
+                                            }
+                                            editable={!exp.currentlyWorking}
+                                        />
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={styles.checkboxContainer}
+                                        onPress={() =>
+                                            updateExperience(
+                                                index,
+                                                "currentlyWorking",
+                                                !exp.currentlyWorking
+                                            )
+                                        }
+                                    >
+                                        <Ionicons
+                                            name={
+                                                exp.currentlyWorking
+                                                    ? "checkbox"
+                                                    : "square-outline"
+                                            }
+                                            size={24}
+                                            color="#E4002B"
+                                        />
+                                        <Text style={styles.checkboxLabel}>
+                                            Currently Working Here
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+
+                            <TouchableOpacity
+                                style={styles.addExpButton}
+                                onPress={addExperience}
+                            >
+                                <Ionicons
+                                    name="add-circle-outline"
+                                    size={24}
+                                    color="#E4002B"
+                                />
+                                <Text style={styles.addExpText}>
+                                    Add Another Experience
                                 </Text>
-                                <Text style={styles.uploadHint}>
-                                    * Accepted formats: PNG, JPG, JPEG, PDF —
-                                    less than 1 MB
-                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
 
-                                <FileUpload
-                                    label="Aadhaar (Front)"
-                                    file={p_aadhaarFile1}
-                                    onFileSelect={setPAadhaarFile1}
-                                    onFileRemove={() => setPAadhaarFile1(null)}
-                                    accept="all"
-                                    required={true}
-                                />
+                    {/* File Uploads */}
+                    <View style={[styles.section, { zIndex: 1 }]}>
+                        <Text style={styles.sectionTitle}>File Uploads</Text>
+                        <Text style={styles.uploadHint}>
+                            * Accepted formats: PNG, JPG, JPEG, PDF — less than
+                            1 MB
+                        </Text>
 
-                                <FileUpload
-                                    label="Aadhaar (Back)"
-                                    file={p_aadhaarFile2}
-                                    onFileSelect={setPAadhaarFile2}
-                                    onFileRemove={() => setPAadhaarFile2(null)}
-                                    accept="all"
-                                    required={true}
-                                />
+                        <FileUpload
+                            label="Aadhaar (Front)"
+                            file={aadhaarFile1}
+                            onFileSelect={setAadhaarFile1}
+                            onFileRemove={() => setAadhaarFile1(null)}
+                            accept="all"
+                            required={true}
+                        />
 
-                                <FileUpload
-                                    label="PAN Card"
-                                    file={p_panFile}
-                                    onFileSelect={setPPanFile}
-                                    onFileRemove={() => setPPanFile(null)}
-                                    accept="all"
-                                    required={true}
-                                />
+                        <FileUpload
+                            label="Aadhaar (Back)"
+                            file={aadhaarFile2}
+                            onFileSelect={setAadhaarFile2}
+                            onFileRemove={() => setAadhaarFile2(null)}
+                            accept="all"
+                            required={true}
+                        />
 
+                        {employeeType === "Permanent" && (
+                            <FileUpload
+                                label="PAN Card"
+                                file={panFile}
+                                onFileSelect={setPanFile}
+                                onFileRemove={() => setPanFile(null)}
+                                accept="all"
+                                required={true}
+                            />
+                        )}
+
+                        <FileUpload
+                            label="Bank Proof (Cancelled Cheque/Passbook)"
+                            file={bankProofFile}
+                            onFileSelect={setBankProofFile}
+                            onFileRemove={() => setBankProofFile(null)}
+                            accept="all"
+                            required={true}
+                        />
+
+                        {employeeType === "Permanent" && (
+                            <>
                                 <FileUpload
                                     label="Family Photo"
-                                    file={p_familyPhoto}
-                                    onFileSelect={setPFamilyPhoto}
-                                    onFileRemove={() => setPFamilyPhoto(null)}
+                                    file={familyPhoto}
+                                    onFileSelect={setFamilyPhoto}
+                                    onFileRemove={() => setFamilyPhoto(null)}
                                     accept="image"
-                                    required={true}
                                 />
 
                                 <FileUpload
-                                    label="Bank Proof (Cancelled Cheque/Passbook)"
-                                    file={p_bankProofFile}
-                                    onFileSelect={setPBankProofFile}
-                                    onFileRemove={() => setPBankProofFile(null)}
+                                    label="PF Form"
+                                    file={pfForm}
+                                    onFileSelect={setPfForm}
+                                    onFileRemove={() => setPfForm(null)}
                                     accept="all"
                                     required={true}
                                 />
 
                                 <FileUpload
                                     label="ESI Form"
-                                    file={p_esiForm}
-                                    onFileSelect={setPEsiForm}
-                                    onFileRemove={() => setPEsiForm(null)}
-                                    accept="all"
-                                    required={true}
-                                />
-
-                                <FileUpload
-                                    label="PF Form"
-                                    file={p_pfForm}
-                                    onFileSelect={setPPfForm}
-                                    onFileRemove={() => setPPfForm(null)}
+                                    file={esiForm}
+                                    onFileSelect={setEsiForm}
+                                    onFileRemove={() => setEsiForm(null)}
                                     accept="all"
                                     required={true}
                                 />
 
                                 <FileUpload
                                     label="Employment Form"
-                                    file={p_employmentForm}
-                                    onFileSelect={setPEmploymentForm}
-                                    onFileRemove={() =>
-                                        setPEmploymentForm(null)
-                                    }
+                                    file={employmentForm}
+                                    onFileSelect={setEmploymentForm}
+                                    onFileRemove={() => setEmploymentForm(null)}
                                     accept="all"
-                                    required={true}
                                 />
 
                                 <FileUpload
                                     label="Copy of CV"
-                                    file={p_cv}
-                                    onFileSelect={setPCv}
-                                    onFileRemove={() => setPCv(null)}
+                                    file={cv}
+                                    onFileSelect={setCv}
+                                    onFileRemove={() => setCv(null)}
                                     accept="all"
-                                    required={true}
                                 />
-                            </View>
-                        </>
-                    )}
+                            </>
+                        )}
+                    </View>
 
-                    {/* CONTRACTUAL EMPLOYEE FORM */}
-                    {workerType === "Contractual" && (
-                        <>
-                            {/* Personal Details */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    Personal Details
-                                </Text>
+                    {/* Password Change Section */}
+                    <View style={[styles.section, { zIndex: 1 }]}>
+                        <Text style={styles.sectionTitle}>
+                            Change Password (Optional)
+                        </Text>
 
-                                <PhotoPicker
-                                    label="Person Photo"
-                                    photo={c_personPhoto}
-                                    onPhotoSelect={setCPersonPhoto}
-                                    onPhotoRemove={() => setCPersonPhoto(null)}
-                                    required={true}
-                                    size="large"
+                        <View style={styles.passwordContainer}>
+                            <TextInput
+                                style={[styles.input, styles.passwordInput]}
+                                placeholder="New Password (min 6 characters)"
+                                placeholderTextColor="#999"
+                                value={newPassword}
+                                onChangeText={setNewPassword}
+                                secureTextEntry={!showPassword}
+                                autoCapitalize="none"
+                            />
+                            <TouchableOpacity
+                                style={styles.eyeIcon}
+                                onPress={() => setShowPassword(!showPassword)}
+                            >
+                                <Ionicons
+                                    name={showPassword ? "eye-off" : "eye"}
+                                    size={24}
+                                    color="#666"
                                 />
+                            </TouchableOpacity>
+                        </View>
 
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Full Name *"
-                                    placeholderTextColor="#999"
-                                    value={c_name}
-                                    onChangeText={setCName}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Date of Birth (DD/MM/YYYY) *"
-                                    placeholderTextColor="#999"
-                                    value={c_dob}
-                                    onChangeText={setCDob}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Email *"
-                                    placeholderTextColor="#999"
-                                    value={p_email}
-                                    onChangeText={setPEmail}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Phone Number *"
-                                    placeholderTextColor="#999"
-                                    value={c_phone}
-                                    onChangeText={(text) =>
-                                        setCPhone(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="phone-pad"
-                                    maxLength={10}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Aadhaar Number *"
-                                    placeholderTextColor="#999"
-                                    value={c_aadhaar}
-                                    onChangeText={(text) =>
-                                        setCAadhaar(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="number-pad"
-                                    maxLength={12}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="PAN Number *"
-                                    placeholderTextColor="#999"
-                                    value={c_pan}
-                                    onChangeText={(text) =>
-                                        setCPan(text.toUpperCase())
-                                    }
-                                    autoCapitalize="characters"
-                                    maxLength={10}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Length of Contract (e.g., 6 months) *"
-                                    placeholderTextColor="#999"
-                                    value={c_contractLength}
-                                    onChangeText={setCContractLength}
-                                />
-                            </View>
-
-                            {/* Address Details */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    Address Details
-                                </Text>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Address Line 1 *"
-                                    placeholderTextColor="#999"
-                                    value={c_address1}
-                                    onChangeText={setCAddress1}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Address Line 2"
-                                    placeholderTextColor="#999"
-                                    value={c_address2}
-                                    onChangeText={setCAddress2}
-                                />
-
-                                <View style={styles.row}>
-                                    <TextInput
-                                        style={[styles.input, styles.halfInput]}
-                                        placeholder="State *"
-                                        placeholderTextColor="#999"
-                                        value={c_state}
-                                        onChangeText={setCState}
-                                    />
-
-                                    <TextInput
-                                        style={[styles.input, styles.halfInput]}
-                                        placeholder="City *"
-                                        placeholderTextColor="#999"
-                                        value={c_city}
-                                        onChangeText={setCCity}
-                                    />
-                                </View>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Pincode *"
-                                    placeholderTextColor="#999"
-                                    value={c_pincode}
-                                    onChangeText={(text) =>
-                                        setCPincode(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="number-pad"
-                                    maxLength={6}
-                                />
-                            </View>
-
-                            {/* Bank Details */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    Bank Details
-                                </Text>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Bank Account Number *"
-                                    placeholderTextColor="#999"
-                                    value={c_bankAccount}
-                                    onChangeText={(text) =>
-                                        setCBankAccount(text.replace(/\D/g, ""))
-                                    }
-                                    keyboardType="number-pad"
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="IFSC Code *"
-                                    placeholderTextColor="#999"
-                                    value={c_ifsc}
-                                    onChangeText={(text) =>
-                                        setCIfsc(text.toUpperCase())
-                                    }
-                                    autoCapitalize="characters"
-                                    maxLength={11}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Bank Name *"
-                                    placeholderTextColor="#999"
-                                    value={c_bankName}
-                                    onChangeText={setCBankName}
-                                />
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Branch Name *"
-                                    placeholderTextColor="#999"
-                                    value={c_branchName}
-                                    onChangeText={setCBranchName}
-                                />
-                            </View>
-
-                            {/* File Uploads */}
-                            <View style={[styles.section, { zIndex: 1 }]}>
-                                <Text style={styles.sectionTitle}>
-                                    File Uploads
-                                </Text>
-                                <Text style={styles.uploadHint}>
-                                    * Accepted formats: PNG, JPG, JPEG, PDF —
-                                    less than 1 MB
-                                </Text>
-
-                                <FileUpload
-                                    label="Aadhaar (Front)"
-                                    file={c_aadhaarFile1}
-                                    onFileSelect={setCAadhaarFile1}
-                                    onFileRemove={() => setCAadhaarFile1(null)}
-                                    accept="all"
-                                    required={true}
-                                />
-
-                                <FileUpload
-                                    label="Aadhaar (Back)"
-                                    file={c_aadhaarFile2}
-                                    onFileSelect={setCAadhaarFile2}
-                                    onFileRemove={() => setCAadhaarFile2(null)}
-                                    accept="all"
-                                    required={true}
-                                />
-
-                                <FileUpload
-                                    label="PAN Card"
-                                    file={c_panFile}
-                                    onFileSelect={setCPanFile}
-                                    onFileRemove={() => setCPanFile(null)}
-                                    accept="all"
-                                    required={true}
-                                />
-
-                                <FileUpload
-                                    label="Bank Proof (Cancelled Cheque/Passbook)"
-                                    file={c_bankProofFile}
-                                    onFileSelect={setCBankProofFile}
-                                    onFileRemove={() => setCBankProofFile(null)}
-                                    accept="all"
-                                    required={true}
-                                />
-                            </View>
-                        </>
-                    )}
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Confirm New Password"
+                            placeholderTextColor="#999"
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            secureTextEntry={!showPassword}
+                            autoCapitalize="none"
+                        />
+                    </View>
 
                     {/* Submit Button */}
-                    {workerType && (
-                        <GradientButton
-                            title={
-                                submitting ? "Creating..." : "Create Employee"
-                            }
-                            onPress={handleSubmit}
-                            colors={["#E4002B", "#c82333"]}
-                            icon="checkmark-circle-outline"
-                            fullWidth={true}
-                            loading={submitting}
-                            disabled={submitting}
-                        />
-                    )}
+                    <GradientButton
+                        title={
+                            submitting ? "Submitting..." : "Complete Profile"
+                        }
+                        onPress={handleSubmit}
+                        colors={["#E4002B", "#c82333"]}
+                        icon="checkmark-circle-outline"
+                        fullWidth={true}
+                        loading={submitting}
+                        disabled={submitting}
+                    />
                 </View>
             </ScrollView>
 
@@ -1301,25 +1392,18 @@ const CreateEmployeeProfileScreen = ({ navigation }) => {
                 onClose={() => setShowPennyModal(false)}
                 onConfirm={handlePennyConfirm}
                 bankDetails={{
-                    bankName:
-                        workerType === "Permanent" ? p_bankName : c_bankName,
-                    accountNumber:
-                        workerType === "Permanent"
-                            ? p_bankAccount
-                            : c_bankAccount,
-                    ifsc: workerType === "Permanent" ? p_ifsc : c_ifsc,
+                    bankName,
+                    accountNumber: bankAccount,
+                    ifsc,
                 }}
             />
 
             {/* Success Modal */}
             <SuccessModal
                 visible={showSuccessModal}
-                onClose={() => {
-                    setShowSuccessModal(false);
-                    navigation.navigate("EmployeeDashboard");
-                }}
-                title="Employee Created!"
-                message="Employee profile has been created and bank account verified successfully."
+                onClose={handleSuccessClose}
+                title="Profile Completed!"
+                message="Your profile has been completed and verified successfully. You can now access your dashboard."
             />
         </SafeAreaView>
     );
@@ -1348,58 +1432,27 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "#E4002B",
     },
-
-    mainTitle: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: "#E4002B",
-        textAlign: "center",
-        marginBottom: 25,
+    pageSubheading: {
+        fontSize: 14,
+        color: "#666",
+        marginTop: 4,
     },
-    workerTypeSection: {
-        marginBottom: 30,
+    infoCard: {
+        backgroundColor: "#fff",
+        borderRadius: 15,
+        padding: 15,
+        marginBottom: 20,
+        borderLeftWidth: 4,
+        borderLeftColor: "#E4002B",
     },
-    sectionLabel: {
-        fontSize: 16,
+    infoLabel: {
+        fontSize: 14,
+        color: "#666",
+        marginBottom: 8,
+    },
+    infoValue: {
         fontWeight: "600",
         color: "#333",
-        textAlign: "center",
-        marginBottom: 15,
-    },
-    workerTypeContainer: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        gap: 15,
-    },
-    workerTypeCard: {
-        flex: 1,
-        backgroundColor: "#fff",
-        borderWidth: 2,
-        borderColor: "#E0E0E0",
-        borderRadius: 15,
-        padding: 20,
-        alignItems: "center",
-        minHeight: 140,
-        justifyContent: "center",
-    },
-    workerTypeCardActive: {
-        borderColor: "#E4002B",
-        backgroundColor: "#FFF5F5",
-    },
-    workerTypeTitle: {
-        fontSize: 16,
-        fontWeight: "bold",
-        color: "#666",
-        marginTop: 10,
-    },
-    workerTypeTitleActive: {
-        color: "#E4002B",
-    },
-    workerTypeSubtitle: {
-        fontSize: 12,
-        color: "#999",
-        marginTop: 5,
-        textAlign: "center",
     },
     section: {
         backgroundColor: "#fff",
@@ -1483,6 +1536,24 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         fontStyle: "italic",
     },
+    passwordContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F5F5F5",
+        borderWidth: 1,
+        borderColor: "#E0E0E0",
+        borderRadius: 10,
+        marginBottom: 15,
+    },
+    passwordInput: {
+        flex: 1,
+        marginBottom: 0,
+        borderWidth: 0,
+        backgroundColor: "transparent",
+    },
+    eyeIcon: {
+        padding: 15,
+    },
 });
 
-export default CreateEmployeeProfileScreen;
+export default CompleteEmployeeProfileScreen;

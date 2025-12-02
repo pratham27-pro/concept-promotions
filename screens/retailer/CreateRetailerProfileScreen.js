@@ -90,6 +90,8 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const [address1, setAddress1] = useState("");
     const [address2, setAddress2] = useState("");
     const [city, setCity] = useState("");
+    const [pincode, setPincode] = useState("");
+    const [pincodeError, setPincodeError] = useState("");
 
     // State Dropdown
     const [stateOpen, setStateOpen] = useState(false);
@@ -125,9 +127,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         { label: "West Bengal", value: "West Bengal" },
         { label: "Delhi", value: "Delhi" },
     ]);
-
-    const [pincode, setPincode] = useState("");
-    const [pincodeError, setPincodeError] = useState("");
 
     // Bank Details with Dropdown
     const [bankNameOpen, setBankNameOpen] = useState(false);
@@ -521,6 +520,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         }
     };
 
+    // validations
     const validateForm = () => {
         if (!name.trim()) {
             Alert.alert("Error", "Please enter your name");
@@ -627,6 +627,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             }
 
             const formData = new FormData();
+            console.log("Submitting pincode:", pincode);
 
             formData.append("name", name.trim());
             formData.append("contactNo", contactNo);
@@ -650,7 +651,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             );
             formData.append("shopDetails[shopAddress][city]", city.trim());
             formData.append("shopDetails[shopAddress][state]", state);
-            formData.append("shopDetails[shopAddress][pincode]", pincode);
+            formData.append(
+                "shopDetails[shopAddress][pincode]",
+                String(pincode).trim()
+            );
 
             const finalBankName =
                 bankName === "Other" ? otherBankName : bankName;
@@ -1203,7 +1207,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                 placeholder="6-digit pincode"
                                 placeholderTextColor="#999"
                                 value={pincode}
-                                onChangeText={validatePincode}
+                                onChangeText={(value) => setPincode(value)}
                                 keyboardType="number-pad"
                                 maxLength={6}
                             />

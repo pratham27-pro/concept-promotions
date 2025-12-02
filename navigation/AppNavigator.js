@@ -8,10 +8,10 @@ import { useAuth } from "../context/AuthContext";
 // Import screens
 import LoginScreen from "../screens/auth/LoginScreen";
 
-import CompleteEmployeeProfileScreen from "../screens/employee/CompleteEmployeeProfileScreen";
+import CreateEmployeeProfileScreen from "../screens/employee/CreateEmployeeProfileScreen";
 import EmployeeDashboardScreen from "../screens/employee/EmployeeDashboardScreen";
 
-import CompleteRetailerProfileScreen from "../screens/retailer/CompleteRetailerProfileScreen";
+import CreateRetailerProfileScreen from "../screens/retailer/CreateRetailerProfileScreen";
 import RetailerDashboardScreen from "../screens/retailer/RetailerDashboardScreen";
 
 import ClientHomeScreen from "../screens/client/ClientHomeScreen";
@@ -44,13 +44,13 @@ const AppNavigator = () => {
                     {userRole === "employee" && (
                         <Stack.Screen
                             name="CompleteEmployeeProfile"
-                            component={CompleteEmployeeProfileScreen}
+                            component={CreateEmployeeProfileScreen}
                         />
                     )}
                     {userRole === "retailer" && (
                         <Stack.Screen
                             name="CompleteRetailerProfile"
-                            component={CompleteRetailerProfileScreen}
+                            component={CreateRetailerProfileScreen}
                         />
                     )}
                 </>

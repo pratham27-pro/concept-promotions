@@ -5,8 +5,9 @@ import {
     StyleSheet,
     TouchableOpacity,
     Image,
-    Platform,
     Alert,
+    ActionSheetIOS,
+    Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -17,7 +18,7 @@ const FileUpload = ({
     file,
     onFileSelect,
     onFileRemove,
-    accept = "all", // 'image', 'document', 'all'
+    accept = "all", // 'image', 'document', 'all', 'imageOrDocument'
     multiple = false,
     required = false,
     disabled = false,
@@ -25,49 +26,133 @@ const FileUpload = ({
     style,
     error,
 }) => {
-    const pickFile = async () => {
+    // ✅ Show action sheet to let user choose between Image/Document
+    const showPickerOptions = () => {
         if (disabled) return;
 
-        try {
-            let result;
+        // If accept is specific, just pick that type
+        if (accept === "image") {
+            pickImage();
+            return;
+        }
+        if (accept === "document") {
+            pickDocument();
+            return;
+        }
 
-            if (accept === "image") {
-                // Use Image Picker for images
-                result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    allowsMultipleSelection: multiple,
-                    quality: 0.8,
-                });
-
-                if (!result.canceled) {
-                    if (multiple) {
-                        onFileSelect(result.assets);
-                    } else {
-                        onFileSelect(result.assets[0]);
-                    }
+        // ✅ For 'all' or 'imageOrDocument', show choices
+        if (Platform.OS === "ios") {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options: ["Cancel", "Choose Image", "Choose Document"],
+                    cancelButtonIndex: 0,
+                },
+                (buttonIndex) => {
+                    if (buttonIndex === 1) pickImage();
+                    if (buttonIndex === 2) pickDocument();
                 }
-            } else {
-                // Use Document Picker for documents
-                result = await DocumentPicker.getDocumentAsync({
-                    type: accept === "document" ? "application/pdf" : "*/*",
-                    copyToCacheDirectory: true,
-                    multiple: multiple,
-                });
+            );
+        } else {
+            // Android: Show custom alert
+            Alert.alert("Choose File Type", "Select where to pick file from", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Image Gallery", onPress: pickImage },
+                { text: "Document", onPress: pickDocument },
+            ]);
+        }
+    };
 
-                if (result.type !== "cancel") {
-                    onFileSelect(result);
+    const pickImage = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: multiple,
+                quality: 0.8,
+                allowsEditing: false,
+            });
+
+            console.log("📸 Image picker result:", result);
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                if (multiple) {
+                    const normalizedFiles = result.assets.map((asset) => ({
+                        uri: asset.uri,
+                        name: asset.fileName || `image_${Date.now()}.jpg`,
+                        mimeType: "image/jpeg",
+                        type: "image/jpeg",
+                    }));
+                    onFileSelect(normalizedFiles);
+                } else {
+                    const asset = result.assets[0];
+                    const normalizedFile = {
+                        uri: asset.uri,
+                        name: asset.fileName || `image_${Date.now()}.jpg`,
+                        mimeType: "image/jpeg",
+                        type: "image/jpeg",
+                    };
+                    onFileSelect(normalizedFile);
                 }
             }
         } catch (error) {
-            console.error("Error picking file:", error);
-            Alert.alert("Error", "Failed to pick file");
+            console.error("❌ Error picking image:", error);
+            Alert.alert("Error", "Failed to pick image");
+        }
+    };
+
+    const pickDocument = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: accept === "document" ? "application/pdf" : "*/*",
+                copyToCacheDirectory: true,
+                multiple: multiple,
+            });
+
+            console.log("📄 Document picker result:", result);
+
+            // ✅ Handle both old and new DocumentPicker API
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                // New API (expo-document-picker v11+)
+                if (multiple) {
+                    const normalizedFiles = result.assets.map((asset) => ({
+                        uri: asset.uri,
+                        name: asset.name || "file",
+                        mimeType: asset.mimeType || "application/octet-stream",
+                        type: asset.mimeType || "application/octet-stream",
+                    }));
+                    onFileSelect(normalizedFiles);
+                } else {
+                    const asset = result.assets[0];
+                    const normalizedFile = {
+                        uri: asset.uri,
+                        name: asset.name || "file",
+                        mimeType: asset.mimeType || "application/octet-stream",
+                        type: asset.mimeType || "application/octet-stream",
+                    };
+                    onFileSelect(normalizedFile);
+                }
+            } else if (result.type !== "cancel" && result.uri) {
+                // Old API (expo-document-picker v10 and below)
+                const normalizedFile = {
+                    uri: result.uri,
+                    name: result.name || "file",
+                    mimeType: result.mimeType || "application/octet-stream",
+                    type: result.mimeType || "application/octet-stream",
+                };
+                onFileSelect(normalizedFile);
+            }
+        } catch (error) {
+            console.error("❌ Error picking document:", error);
+            Alert.alert("Error", "Failed to pick document");
         }
     };
 
     const isImage = (fileItem) => {
         if (!fileItem) return false;
         const mimeType = fileItem.mimeType || fileItem.type || "";
-        return mimeType.includes("image") || fileItem.uri?.includes("image");
+        return (
+            mimeType.includes("image") ||
+            fileItem.uri?.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/)
+        );
     };
 
     const renderFilePreview = () => {
@@ -148,6 +233,13 @@ const FileUpload = ({
         );
     };
 
+    // ✅ Get appropriate hint text
+    const getHintText = () => {
+        if (accept === "image") return "Images only (JPG, PNG)";
+        if (accept === "document") return "Documents only (PDF)";
+        return "Images or Documents (JPG, PNG, PDF)";
+    };
+
     return (
         <View style={[styles.container, style]}>
             {label && (
@@ -159,7 +251,7 @@ const FileUpload = ({
             {!file || (Array.isArray(file) && file.length === 0) ? (
                 <TouchableOpacity
                     style={[styles.uploadBox, disabled && styles.disabled]}
-                    onPress={pickFile}
+                    onPress={showPickerOptions}
                     disabled={disabled}
                     activeOpacity={0.7}
                 >
@@ -169,13 +261,7 @@ const FileUpload = ({
                         color="#999"
                     />
                     <Text style={styles.uploadText}>{placeholder}</Text>
-                    <Text style={styles.uploadHint}>
-                        {accept === "image"
-                            ? "Images only"
-                            : accept === "document"
-                            ? "PDF only"
-                            : "Any file type"}
-                    </Text>
+                    <Text style={styles.uploadHint}>{getHintText()}</Text>
                 </TouchableOpacity>
             ) : (
                 <>
@@ -183,7 +269,7 @@ const FileUpload = ({
                     {multiple && (
                         <TouchableOpacity
                             style={styles.addMoreButton}
-                            onPress={pickFile}
+                            onPress={showPickerOptions}
                             disabled={disabled}
                         >
                             <Ionicons

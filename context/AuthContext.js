@@ -87,13 +87,12 @@ export const AuthProvider = ({ children }) => {
             let endpoint;
             switch (role) {
                 case "employee":
-                    endpoint = `${API_BASE_URL}/employee/employee/me`;
+                    endpoint = `${API_BASE_URL}/employee/profile`;
                     break;
                 case "retailer":
                     endpoint = `${API_BASE_URL}/retailer/retailer/me`;
                     break;
                 case "client":
-                    // Clients don't need profile completion
                     setNeedsProfileCompletion(false);
                     return;
                 default:
@@ -113,18 +112,32 @@ export const AuthProvider = ({ children }) => {
                 throw new Error("Failed to fetch profile");
             }
 
-            const profileData = await response.json();
-            setUserProfile(profileData);
+            const responseData = await response.json();
+            console.log("🔍 Full profile data from API:", responseData);
 
-            // Check if profile is complete based on role
+            // ✅ Extract actual profile from nested structure
+            let profileData;
+            if (role === "employee" && responseData.employee) {
+                profileData = responseData.employee;
+            } else if (role === "retailer" && responseData.retailer) {
+                profileData = responseData.retailer;
+            } else if (role === "client" && responseData.client) {
+                profileData = responseData.client;
+            } else {
+                // Fallback: maybe it's not nested
+                profileData = responseData;
+            }
+
+            console.log("🔍 Extracted profile:", profileData);
+            setUserProfile(profileData); // ✅ Store unwrapped profile
+
             const isComplete = checkIfProfileComplete(profileData, role);
 
             setNeedsProfileCompletion(!isComplete);
 
-            // Cache the result
             if (isComplete) {
                 await AsyncStorage.setItem(
-                    `profileComplete_${profileData._id}`,
+                    `profileComplete_${profileData._id || profileData.id}`,
                     "true"
                 );
             }
@@ -136,7 +149,6 @@ export const AuthProvider = ({ children }) => {
             );
         } catch (error) {
             console.error("Error checking profile completeness:", error);
-            // On error, assume profile needs completion for safety
             setNeedsProfileCompletion(true);
         }
     };
@@ -157,8 +169,11 @@ export const AuthProvider = ({ children }) => {
                 );
 
                 const hasAddress = !!(
-                    profile.correspondenceAddress?.address ||
-                    profile.correspondenceAddress?.address1
+                    (profile.correspondenceAddress?.addressLine1 ||
+                        profile.correspondenceAddress?.address1) &&
+                    profile.correspondenceAddress?.city &&
+                    profile.correspondenceAddress?.state &&
+                    profile.correspondenceAddress?.pincode
                 );
 
                 const hasBankDetails = !!(
