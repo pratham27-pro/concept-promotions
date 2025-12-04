@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as RootNavigation from "../../navigation/RootNavigation";
 
 import { useAuth } from "../../context/AuthContext";
 import Header from "../../components/common/Header";
@@ -286,12 +287,20 @@ const ClientHomeScreen = ({ navigation }) => {
 
     const handleQuickAction = useCallback(
         (action) => {
-            console.log("Quick action:", action.title);
+            console.log("🔍 Quick action:", action.title);
+            console.log("🔍 Current navigator:", navigation.getState());
+            console.log(
+                "🔍 Parent navigator:",
+                navigation.getParent()?.getState()
+            );
 
             if (action.screen === "Passbook") {
                 navigation.navigate("ClientPassbook");
             } else if (action.screen === "ClientOutlets") {
-                navigation.navigate("ClientOutlets");
+                const parent = navigation.getParent();
+                if (parent) {
+                    parent.navigate("ClientOutlets");
+                }
             } else if (action.screen === "Reports") {
                 navigation.navigate("ClientReport");
             } else {

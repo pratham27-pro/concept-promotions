@@ -8,14 +8,13 @@ import {
     StyleSheet,
     Text,
     TextInput,
-    View
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import GradientButton from "../../components/common/GradientButton";
 import Header from "../../components/common/Header";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
-
 
 const ClientReportScreen = () => {
     // ---- OPTIONS ----
@@ -262,7 +261,7 @@ const ClientReportScreen = () => {
     return (
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <StatusBar style="dark" />
-            <Header />
+            <Header showBackButton={false} />
 
             <ScrollView
                 showsVerticalScrollIndicator={false}

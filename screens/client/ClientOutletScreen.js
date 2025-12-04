@@ -515,7 +515,10 @@ const ClientOutletsScreen = ({ navigation }) => {
                 style={styles.container}
                 edges={["top", "left", "right"]}
             >
-                <Header />
+                <Header
+                    showBackButton={true}
+                    onBackPress={() => navigation.goBack()} // Use local navigation
+                />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#E4002B" />
                     <Text style={styles.loadingText}>Loading outlets...</Text>
@@ -527,7 +530,10 @@ const ClientOutletsScreen = ({ navigation }) => {
     return (
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <StatusBar style="dark" />
-            <Header />
+            <Header
+                showBackButton={true}
+                onBackPress={() => navigation.goBack()} // Use local navigation
+            />
 
             <ScrollView
                 showsVerticalScrollIndicator={false}

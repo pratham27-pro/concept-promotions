@@ -320,7 +320,7 @@ const ClientPassbookScreen = () => {
                 style={styles.container}
                 edges={["top", "left", "right"]}
             >
-                <Header />
+                <Header showBackButton={false} />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#E4002B" />
                     <Text style={styles.loadingText}>Loading passbook...</Text>
@@ -332,7 +332,7 @@ const ClientPassbookScreen = () => {
     return (
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <StatusBar style="dark" />
-            <Header />
+            <Header showBackButton={false} />
 
             <ScrollView
                 showsVerticalScrollIndicator={false}

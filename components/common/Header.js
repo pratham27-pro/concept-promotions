@@ -7,6 +7,7 @@ const Header = ({
     showBackButton = true,
     onBackPress,
     showLogo = true,
+    logoSource = require("../../assets/supreme.jpg"), // ✅ Default logo
     logoComponent,
     title,
     rightComponent,
@@ -37,14 +38,20 @@ const Header = ({
 
             {/* Center - Logo or Title */}
             <View style={styles.centerContainer}>
-                {showLogo && !logoComponent && (
-                    <View style={styles.logoPlaceholder}>
-                        <Text style={styles.logoText}>CONCEPT</Text>
-                        <Text style={styles.logoSubtext}>PROMOTIONS</Text>
-                    </View>
-                )}
+                {/* ✅ Custom logo component takes priority */}
                 {logoComponent && logoComponent}
-                {title && !showLogo && (
+
+                {/* ✅ Show image logo if no custom component and showLogo is true */}
+                {!logoComponent && showLogo && (
+                    <Image
+                        source={logoSource}
+                        style={styles.logoImage}
+                        resizeMode="contain"
+                    />
+                )}
+
+                {/* ✅ Show title only if no logo */}
+                {!logoComponent && !showLogo && title && (
                     <Text style={styles.headerTitle}>{title}</Text>
                 )}
             </View>
@@ -88,23 +95,10 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
-    logoPlaceholder: {
-        width: 60,
-        height: 60,
-        backgroundColor: "#f0f0f0",
-        borderRadius: 30,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    logoText: {
-        fontSize: 11,
-        fontWeight: "bold",
-        color: "#333",
-    },
-    logoSubtext: {
-        fontSize: 6,
-        color: "#666",
-        marginTop: 2,
+    logoImage: {
+        // ✅ New style for logo image
+        width: 120,
+        height: 40,
     },
     headerTitle: {
         fontSize: 18,
