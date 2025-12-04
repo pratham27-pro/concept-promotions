@@ -26,6 +26,8 @@ import Header from "../../components/common/Header";
 
 const API_BASE_URL = "https://supreme-419p.onrender.com/api";
 
+// TODO: Isme backend mei dikkat hai toh woh anubhav bhaiya theek karenge then i'll change it here. Isme woh pincode nahi le rha toh ig data kaise backend mei parse ho rha usme problem hai.
+
 const CreateRetailerProfileScreen = ({ navigation }) => {
     // Loading & Profile States
     const [loading, setLoading] = useState(true);
@@ -530,10 +532,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             Alert.alert("Error", "Please enter a valid contact number");
             return false;
         }
-        if (!otpVerified && !profileExists) {
-            Alert.alert("Error", "Please verify your contact number");
-            return false;
-        }
+        // if (!otpVerified && !profileExists) {
+        //     Alert.alert("Error", "Please verify your contact number");
+        //     return false;
+        // }
         if (!govtIdType) {
             Alert.alert("Error", "Please select government ID type");
             return false;
@@ -641,6 +643,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             formData.append("shopDetails[ownershipType]", ownershipType);
             formData.append("shopDetails[GSTNo]", gstNo.trim());
             formData.append("shopDetails[PANCard]", panCard.trim());
+
             formData.append(
                 "shopDetails[shopAddress][address]",
                 address1.trim()
@@ -656,9 +659,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 String(pincode).trim()
             );
 
-            const finalBankName =
-                bankName === "Other" ? otherBankName : bankName;
-            formData.append("bankDetails[bankName]", finalBankName);
+            formData.append("bankDetails[bankName]", bankName);
             formData.append("bankDetails[accountNumber]", accountNumber.trim());
             formData.append("bankDetails[IFSC]", ifsc.trim());
             formData.append("bankDetails[branchName]", branchName.trim());

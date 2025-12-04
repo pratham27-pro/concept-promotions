@@ -5,24 +5,35 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Image,
     TextInput,
     Alert,
     Platform,
+    ActivityIndicator,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import * as RootNavigation from "../../navigation/RootNavigation";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 
 // Import reusable components
 import Header from "../../components/common/Header";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
 import FileUpload from "../../components/common/FileUpload";
 
-const SubmitReportScreen = ({ route }) => {
+const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+
+// TODO: Yet to be tested after retailer profile completion and updation is sorted.
+
+const SubmitReportScreen = ({ route, navigation }) => {
     const { campaign } = route.params;
+
+    // Loading state
+    const [submitting, setSubmitting] = useState(false);
+
+    // Visit Type (always "physical" for retailer)
+    const [visitType] = useState("physical");
 
     // Report Type
     const [reportTypeOpen, setReportTypeOpen] = useState(false);
@@ -33,7 +44,7 @@ const SubmitReportScreen = ({ route }) => {
         { label: "Others", value: "others" },
     ]);
 
-    // Frequency
+    // Frequency (Future use)
     const [frequencyOpen, setFrequencyOpen] = useState(false);
     const [frequency, setFrequency] = useState(null);
     const [frequencyOptions] = useState([
@@ -104,25 +115,219 @@ const SubmitReportScreen = ({ route }) => {
     const [quantity, setQuantity] = useState("");
     const [billCopy, setBillCopy] = useState(null);
 
+    // Other Reason Text (for "others" report type)
+    const [otherReasonText, setOtherReasonText] = useState("");
+
     // Files for window and others
     const [files, setFiles] = useState([]);
 
-    const handleSubmit = () => {
+    // Location
+    const [location, setLocation] = useState(null);
+
+    // Get current location
+    const getCurrentLocation = async () => {
+        try {
+            const { status } =
+                await Location.requestForegroundPermissionsAsync();
+            if (status !== "granted") {
+                Alert.alert(
+                    "Permission Denied",
+                    "Location permission is required to submit reports"
+                );
+                return null;
+            }
+
+            const currentLocation = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+            });
+
+            return {
+                latitude: currentLocation.coords.latitude,
+                longitude: currentLocation.coords.longitude,
+            };
+        } catch (error) {
+            console.error("Error getting location:", error);
+            return null;
+        }
+    };
+
+    const validateForm = () => {
         if (!reportType) {
             Alert.alert("Error", "Please select report type");
-            return;
-        }
-        if (!frequency) {
-            Alert.alert("Error", "Please select frequency");
-            return;
+            return false;
         }
 
-        Alert.alert("Success", "Report submitted successfully!", [
-            {
-                text: "OK",
-                onPress: () => RootNavigation.goBack(),
-            },
-        ]);
+        // Stock validation
+        if (reportType === "stock") {
+            if (!stockType) {
+                Alert.alert("Error", "Please select stock type");
+                return false;
+            }
+            if (!brand) {
+                Alert.alert("Error", "Please select brand");
+                return false;
+            }
+            if (!product) {
+                Alert.alert("Error", "Please select product");
+                return false;
+            }
+            if (!sku) {
+                Alert.alert("Error", "Please select SKU");
+                return false;
+            }
+            if (!quantity || isNaN(quantity) || Number(quantity) <= 0) {
+                Alert.alert("Error", "Please enter valid quantity");
+                return false;
+            }
+        }
+
+        // Window validation
+        if (reportType === "window") {
+            if (!files || files.length === 0) {
+                Alert.alert(
+                    "Error",
+                    "Please upload at least one shop display image"
+                );
+                return false;
+            }
+        }
+
+        // Others validation
+        if (reportType === "others") {
+            if (!otherReasonText.trim()) {
+                Alert.alert("Error", "Please describe the reason");
+                return false;
+            }
+            if (!files || files.length === 0) {
+                Alert.alert("Error", "Please upload a file");
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    const handleSubmit = async () => {
+        if (!validateForm()) return;
+
+        setSubmitting(true);
+
+        try {
+            // Get location
+            const currentLocation = await getCurrentLocation();
+            if (!currentLocation) {
+                Alert.alert(
+                    "Error",
+                    "Unable to get location. Please try again."
+                );
+                setSubmitting(false);
+                return;
+            }
+
+            const token = await AsyncStorage.getItem("userToken");
+            if (!token) {
+                Alert.alert("Error", "Please login again.");
+                navigation.replace("Login");
+                return;
+            }
+
+            const formData = new FormData();
+
+            // Basic fields
+            formData.append("campaignId", campaign.id);
+            formData.append("visitType", visitType);
+            formData.append("reportType", reportType);
+            formData.append("latitude", currentLocation.latitude);
+            formData.append("longitude", currentLocation.longitude);
+
+            // Stock fields
+            if (reportType === "stock") {
+                formData.append("stockType", stockType);
+                formData.append("brand", brand);
+                formData.append("product", product);
+                formData.append("sku", sku);
+                formData.append("quantity", quantity);
+
+                // Bill copy upload
+                if (billCopy && billCopy.uri) {
+                    formData.append("images", {
+                        uri: billCopy.uri,
+                        name: billCopy.name || "bill_copy.pdf",
+                        type:
+                            billCopy.mimeType ||
+                            billCopy.type ||
+                            "application/pdf",
+                    });
+                }
+            }
+
+            // Others fields
+            if (reportType === "others") {
+                formData.append("otherReasonText", otherReasonText);
+            }
+
+            // Images upload (for window and others)
+            if (
+                (reportType === "window" || reportType === "others") &&
+                files.length > 0
+            ) {
+                files.forEach((file, index) => {
+                    if (file && file.uri) {
+                        formData.append("images", {
+                            uri: file.uri,
+                            name: file.name || `image_${index + 1}.jpg`,
+                            type: file.mimeType || file.type || "image/jpeg",
+                        });
+                    }
+                });
+            }
+
+            console.log("📤 Submitting retailer report...");
+
+            const response = await fetch(
+                `${API_BASE_URL}/retailer/report/submit`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        // Don't set Content-Type - FormData will set it with boundary
+                    },
+                    body: formData,
+                }
+            );
+
+            const responseText = await response.text();
+            console.log("📥 Raw response:", responseText);
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("❌ Failed to parse JSON:", e);
+                throw new Error("Server returned invalid response");
+            }
+
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to submit report");
+            }
+
+            console.log("✅ Report submitted successfully:", data);
+
+            Alert.alert("Success", "Report submitted successfully!", [
+                {
+                    text: "OK",
+                    onPress: () => navigation.goBack(),
+                },
+            ]);
+        } catch (error) {
+            console.error("❌ Error submitting report:", error);
+            Alert.alert(
+                "Error",
+                error.message || "Failed to submit report. Please try again."
+            );
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -145,7 +350,7 @@ const SubmitReportScreen = ({ route }) => {
                         </Text>
                     </View>
 
-                    {/* Type of Report - Using SearchableDropdown */}
+                    {/* Type of Report */}
                     <SearchableDropdown
                         label="Type of Report"
                         placeholder="Select Report Type"
@@ -158,16 +363,15 @@ const SubmitReportScreen = ({ route }) => {
                         zIndex={7000}
                     />
 
-                    {/* Frequency - Using SearchableDropdown */}
+                    {/* Frequency (Future Use) */}
                     <SearchableDropdown
-                        label="Frequency"
+                        label="Frequency (Future Use)"
                         placeholder="Select Frequency"
                         open={frequencyOpen}
                         value={frequency}
                         items={frequencyOptions}
                         setOpen={setFrequencyOpen}
                         setValue={setFrequency}
-                        required={true}
                         zIndex={6000}
                         onSelectItem={(item) => {
                             setShowCustomDate(item.value === "custom");
@@ -235,9 +439,9 @@ const SubmitReportScreen = ({ route }) => {
                         </View>
                     )}
 
-                    {/* Extra (Future) - Using SearchableDropdown */}
+                    {/* Extra (Future) */}
                     <SearchableDropdown
-                        label="Extra (Future)"
+                        label="Extra (Future Use)"
                         placeholder="Select future use"
                         open={futureOpen}
                         value={future}
@@ -262,6 +466,7 @@ const SubmitReportScreen = ({ route }) => {
                                 items={stockTypeOptions}
                                 setOpen={setStockTypeOpen}
                                 setValue={setStockType}
+                                required={true}
                                 zIndex={4000}
                             />
 
@@ -273,6 +478,7 @@ const SubmitReportScreen = ({ route }) => {
                                 items={brandOptions}
                                 setOpen={setBrandOpen}
                                 setValue={setBrand}
+                                required={true}
                                 zIndex={3000}
                             />
 
@@ -284,6 +490,7 @@ const SubmitReportScreen = ({ route }) => {
                                 items={productOptions}
                                 setOpen={setProductOpen}
                                 setValue={setProduct}
+                                required={true}
                                 zIndex={2000}
                             />
 
@@ -295,6 +502,7 @@ const SubmitReportScreen = ({ route }) => {
                                 items={skuOptions}
                                 setOpen={setSkuOpen}
                                 setValue={setSku}
+                                required={true}
                                 zIndex={1000}
                             />
 
@@ -316,14 +524,16 @@ const SubmitReportScreen = ({ route }) => {
                                     placeholder="Enter quantity"
                                     placeholderTextColor="#999"
                                     value={quantity}
-                                    onChangeText={setQuantity}
+                                    onChangeText={(text) =>
+                                        setQuantity(text.replace(/[^0-9]/g, ""))
+                                    }
                                     keyboardType="numeric"
                                 />
                             </View>
 
-                            {/* Bill Copy - Using FileUpload */}
+                            {/* Bill Copy */}
                             <FileUpload
-                                label="Bill Copy"
+                                label="Bill Copy (Optional)"
                                 file={billCopy}
                                 onFileSelect={setBillCopy}
                                 onFileRemove={() => setBillCopy(null)}
@@ -333,45 +543,82 @@ const SubmitReportScreen = ({ route }) => {
                         </View>
                     )}
 
-                    {/* WINDOW SECTION - Using FileUpload */}
+                    {/* WINDOW SECTION */}
                     {reportType === "window" && (
-                        <FileUpload
-                            label="Upload Shop Display"
-                            file={files}
-                            onFileSelect={(newFiles) =>
-                                setFiles(
-                                    Array.isArray(newFiles)
-                                        ? newFiles
-                                        : [...files, newFiles]
-                                )
-                            }
-                            onFileRemove={setFiles}
-                            accept="image"
-                            multiple={true}
-                            placeholder="Click to add more images"
-                        />
+                        <View style={{ zIndex: 1 }}>
+                            <FileUpload
+                                label="Upload Shop Display"
+                                file={files}
+                                onFileSelect={(newFiles) =>
+                                    setFiles(
+                                        Array.isArray(newFiles)
+                                            ? newFiles
+                                            : [...files, newFiles]
+                                    )
+                                }
+                                onFileRemove={setFiles}
+                                accept="all"
+                                multiple={true}
+                                placeholder="Click to add images"
+                                required={true}
+                            />
+                        </View>
                     )}
 
-                    {/* OTHERS SECTION - Using FileUpload */}
+                    {/* OTHERS SECTION */}
                     {reportType === "others" && (
-                        <FileUpload
-                            label="Upload File"
-                            file={files.length > 0 ? files[0] : null}
-                            onFileSelect={(file) => setFiles([file])}
-                            onFileRemove={() => setFiles([])}
-                            accept="all"
-                            placeholder="Click to upload file"
-                        />
+                        <View style={{ zIndex: 1 }}>
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Reason *</Text>
+                                <TextInput
+                                    style={[styles.input, styles.textArea]}
+                                    placeholder="Describe the reason for this report"
+                                    placeholderTextColor="#999"
+                                    value={otherReasonText}
+                                    onChangeText={setOtherReasonText}
+                                    multiline={true}
+                                    numberOfLines={4}
+                                    textAlignVertical="top"
+                                />
+                            </View>
+
+                            <FileUpload
+                                label="Upload File"
+                                file={files.length > 0 ? files[0] : null}
+                                onFileSelect={(file) => setFiles([file])}
+                                onFileRemove={() => setFiles([])}
+                                accept="all"
+                                placeholder="Click to upload file"
+                                required={true}
+                            />
+                        </View>
                     )}
+
+                    {/* Location Info */}
+                    <View style={styles.infoCard}>
+                        <Ionicons name="location" size={20} color="#007AFF" />
+                        <Text style={styles.infoText}>
+                            Location will be captured automatically when you
+                            submit
+                        </Text>
+                    </View>
 
                     {/* Submit Button */}
                     <TouchableOpacity
-                        style={styles.submitButton}
+                        style={[
+                            styles.submitButton,
+                            submitting && styles.submitButtonDisabled,
+                        ]}
                         onPress={handleSubmit}
+                        disabled={submitting}
                     >
-                        <Text style={styles.submitButtonText}>
-                            Submit Report
-                        </Text>
+                        {submitting ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                            <Text style={styles.submitButtonText}>
+                                Submit Report
+                            </Text>
+                        )}
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -395,6 +642,8 @@ const styles = StyleSheet.create({
         padding: 15,
         borderRadius: 10,
         marginBottom: 20,
+        borderLeftWidth: 4,
+        borderLeftColor: "#007AFF",
     },
     campaignInfoText: {
         fontSize: 16,
@@ -418,6 +667,10 @@ const styles = StyleSheet.create({
         padding: 15,
         fontSize: 15,
         color: "#333",
+    },
+    textArea: {
+        minHeight: 100,
+        paddingTop: 15,
     },
     dateRangeContainer: {
         flexDirection: "row",
@@ -450,12 +703,29 @@ const styles = StyleSheet.create({
         color: "#333",
         marginBottom: 15,
     },
+    infoCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#E8F4FF",
+        padding: 15,
+        borderRadius: 10,
+        marginBottom: 20,
+        gap: 10,
+    },
+    infoText: {
+        flex: 1,
+        fontSize: 13,
+        color: "#007AFF",
+    },
     submitButton: {
         backgroundColor: "#E4002B",
         borderRadius: 10,
         paddingVertical: 16,
         alignItems: "center",
         marginTop: 20,
+    },
+    submitButtonDisabled: {
+        backgroundColor: "#FFCDD2",
     },
     submitButtonText: {
         color: "#fff",

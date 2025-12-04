@@ -9,14 +9,12 @@ import { useAuth } from "../context/AuthContext";
 import LoginScreen from "../screens/auth/LoginScreen";
 
 import CreateEmployeeProfileScreen from "../screens/employee/CreateEmployeeProfileScreen";
-import EmployeeDashboardScreen from "../screens/employee/EmployeeDashboardScreen";
-
 import CreateRetailerProfileScreen from "../screens/retailer/CreateRetailerProfileScreen";
-import RetailerDashboardScreen from "../screens/retailer/RetailerDashboardScreen";
 
-import ClientHomeScreen from "../screens/client/ClientHomeScreen";
-
-// Add other screens as needed
+// ✅ Import Tab Navigators instead of Dashboard Screens
+import EmployeeTabNavigator from "../navigation/employee/EmployeeTabNavigator";
+import RetailerTabNavigator from "../navigation/retailer/RetailerTabNavigator";
+import ClientTabNavigator from "../navigation/client/ClientTabNavigator";
 
 const Stack = createStackNavigator();
 
@@ -55,24 +53,24 @@ const AppNavigator = () => {
                     )}
                 </>
             ) : (
-                // ✅ Logged in with complete profile - Show dashboards
+                // ✅ Logged in with complete profile - Show Tab Navigators (with bottom navbar)
                 <>
                     {userRole === "employee" && (
                         <Stack.Screen
-                            name="EmployeeDashboard"
-                            component={EmployeeDashboardScreen}
+                            name="EmployeeTabs"
+                            component={EmployeeTabNavigator} // ✅ Tab Navigator instead of Dashboard
                         />
                     )}
                     {userRole === "retailer" && (
                         <Stack.Screen
-                            name="RetailerDashboard"
-                            component={RetailerDashboardScreen}
+                            name="RetailerTabs"
+                            component={RetailerTabNavigator} // ✅ Tab Navigator instead of Dashboard
                         />
                     )}
                     {userRole === "client" && (
                         <Stack.Screen
-                            name="ClientHome"
-                            component={ClientHomeScreen}
+                            name="ClientTabs"
+                            component={ClientTabNavigator} // ✅ Tab Navigator instead of Dashboard
                         />
                     )}
                 </>
