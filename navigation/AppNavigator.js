@@ -14,7 +14,7 @@ import CreateRetailerProfileScreen from "../screens/retailer/CreateRetailerProfi
 // ✅ Import Tab Navigators instead of Dashboard Screens
 import EmployeeTabNavigator from "../navigation/employee/EmployeeTabNavigator";
 import RetailerTabNavigator from "../navigation/retailer/RetailerTabNavigator";
-import ClientTabNavigator from "../navigation/client/ClientTabNavigator";
+import ClientStackNavigator from "../navigation/client/ClientStackNavigator";
 
 const Stack = createStackNavigator();
 
@@ -68,10 +68,15 @@ const AppNavigator = () => {
                         />
                     )}
                     {userRole === "client" && (
-                        <Stack.Screen
-                            name="ClientTabs"
-                            component={ClientTabNavigator} // ✅ Tab Navigator instead of Dashboard
-                        />
+                        <>
+                            {console.log(
+                                "✅ Rendering ClientTabs for client role"
+                            )}
+                            <Stack.Screen
+                                name="ClientStack"
+                                component={ClientStackNavigator}
+                            />
+                        </>
                     )}
                 </>
             )}

@@ -6,12 +6,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ClientHomeScreen from "../../screens/client/ClientHomeScreen";
 import ClientPassbookScreen from "../../screens/client/ClientPassbookScreen";
 import ClientReportScreen from "../../screens/client/ClientReportScreen";
-
+// import ClientOutletsScreen from "../../screens/client/ClientOutletScreen";
 
 const Tab = createBottomTabNavigator();
 
 const ClientTabNavigator = () => {
     const insets = useSafeAreaInsets();
+
+    console.log("🎯 ClientTabNavigator rendered");
 
     return (
         <Tab.Navigator
@@ -48,7 +50,6 @@ const ClientTabNavigator = () => {
                             : "document-text-outline";
                     } else if (route.name === "ClientPassbook") {
                         iconName = focused ? "wallet" : "wallet-outline";
-
                     }
 
                     return <Ionicons name={iconName} size={22} color={color} />;

@@ -136,21 +136,37 @@ const LoginScreen = () => {
             // Login successful
             console.log("✅ Login successful:", data);
 
-            // ✅ Extract user ID based on role
+            // Save userData
+            await AsyncStorage.setItem("userData", JSON.stringify(data));
+            await AsyncStorage.setItem("userToken", data.token || "");
+            await AsyncStorage.setItem("userEmail", email);
+
             let userId;
-            if (role === "retailer") {
+            let backendRole = role; // This is "client_admin", "retailer_admin", "employee_admin"
+
+            // ✅ Extract actual role from response data
+            if (
+                role === "client_admin" ||
+                role === "client" ||
+                role === "admin"
+            ) {
+                userId = data.admin?.id || data.admin?._id;
+                // Get the actual role from admin data (national, regional, etc)
+                backendRole = data.admin?.role || "national";
+                console.log("🔍 Client admin role from backend:", backendRole);
+            } else if (role === "retailer") {
                 userId = data.retailer?.id || data.retailer?._id;
+                backendRole = "retailer";
             } else if (role === "employee") {
                 userId = data.employee?.id || data.employee?._id;
-            } else if (role === "client") {
-                userId = data.client?.id || data.client?._id || data.admin?.id;
+                backendRole = "employee";
             }
 
-            // ✅ Use AuthContext to handle login and profile check
-            await login(data.token, role, userId);
+            // Save backend role temporarily
+            await AsyncStorage.setItem("userRole", backendRole);
 
-            // ✅ Navigation will be handled automatically by AppNavigator
-            // No need for manual navigation here!
+            // ✅ AuthContext will map the role
+            await login(data.token, backendRole, userId);
         } catch (error) {
             console.error("❌ Network error:", error);
             Alert.alert(

@@ -7,6 +7,18 @@ const API_BASE_URL = "https://supreme-419p.onrender.com/api";
 
 const AuthContext = createContext();
 
+const mapBackendRoleToAppRole = (backendRole) => {
+    // Map all client admin roles to "client"
+    const clientRoles = ["national", "regional", "district", "client"];
+
+    if (clientRoles.includes(backendRole)) {
+        return "client";
+    }
+
+    // Return original role for employee and retailer
+    return backendRole;
+};
+
 export const AuthProvider = ({ children }) => {
     const [userToken, setUserToken] = useState(null);
     const [userRole, setUserRole] = useState(null);
@@ -56,25 +68,37 @@ export const AuthProvider = ({ children }) => {
     // Login function
     const login = async (token, role, id, profileData = null) => {
         try {
-            // Save to AsyncStorage
+            console.log("🔍 Login - Backend role:", role);
+
+            // ✅ Map backend role to app role
+            const appRole = mapBackendRoleToAppRole(role);
+            console.log("✅ Login - Mapped app role:", appRole);
+
+            // Save MAPPED role to AsyncStorage
             await AsyncStorage.setItem("userToken", token);
-            await AsyncStorage.setItem("userRole", role);
+            await AsyncStorage.setItem("userRole", appRole); // ✅ Save mapped role
             await AsyncStorage.setItem("userId", id);
 
-            // Update state
+            // Update state with mapped role
             setUserToken(token);
-            setUserRole(role);
+            setUserRole(appRole);
             setUserId(id);
 
             // Check if profile is complete
-            if (role === "client") {
-                // Clients don't need profile completion
+            if (appRole === "client") {
                 setNeedsProfileCompletion(false);
                 await AsyncStorage.setItem(`profileComplete_${id}`, "true");
+                console.log("✅ Client role - skipping profile check");
             } else {
                 // For employee and retailer, check completeness
-                await checkProfileCompleteness(token, role);
+                await checkProfileCompleteness(token, appRole);
             }
+            console.log("🎯 Final auth state:", {
+                userToken: token,
+                userRole: appRole,
+                needsProfileCompletion:
+                    appRole === "client" ? false : undefined,
+            });
         } catch (error) {
             console.error("Error saving login data:", error);
             throw error;
