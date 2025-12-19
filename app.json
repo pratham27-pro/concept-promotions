@@ -24,6 +24,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a8a723a2-73ba-4503-af13-efac7cdcac20"
+      }
+    },
+    "owner": "prathams-organization"
   }
 }

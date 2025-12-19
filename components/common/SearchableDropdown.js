@@ -20,22 +20,11 @@ const SearchableDropdown = ({
     dropDownContainerStyle,
     labelStyle,
     error,
-    onSelectItem,
+    // onSelectItem,
 }) => {
-    const handleSelectItem = (item) => {
-        // Toggle for single-select
-        if (!multiple) {
-            if (value === item.value) {
-                setValue(null);
-            } else {
-                setValue(item.value);
-            }
-        } else {
-            // Let DropDownPicker handle multi + we expose clear-all button
-            onSelectItem && onSelectItem(item);
-        }
-        onSelectItem && onSelectItem(item);
-    };
+    // const handleSelectItem = (item) => {
+    //     onSelectItem && onSelectItem(item);
+    // };
 
     return (
         <View style={[styles.container, { zIndex }]}>
@@ -55,6 +44,7 @@ const SearchableDropdown = ({
                 searchable={searchable}
                 disabled={disabled}
                 multiple={multiple}
+                mode="BADGE"
                 style={[styles.dropdown, style]}
                 dropDownContainerStyle={[
                     styles.dropdownContainer,
@@ -68,7 +58,7 @@ const SearchableDropdown = ({
                 }}
                 dropDownDirection="AUTO"
                 searchPlaceholder="Search..."
-                onSelectItem={handleSelectItem}
+                // onSelectItem={handleSelectItem}
                 theme="LIGHT"
             />
             {((multiple && Array.isArray(value) && value.length > 0) ||
@@ -76,7 +66,13 @@ const SearchableDropdown = ({
                 !disabled && (
                     <TouchableOpacity
                         style={styles.clearButton}
-                        onPress={() => setValue(multiple ? [] : null)}
+                        onPress={() => {
+                            if (multiple) {
+                                setValue((prev) => []);
+                            } else {
+                                setValue((prev) => null);
+                            }
+                        }}
                     >
                         <Ionicons name="close-circle" size={20} color="#999" />
                     </TouchableOpacity>

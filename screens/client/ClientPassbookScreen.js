@@ -1,10 +1,15 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, {
+    useState,
+    useCallback,
+    useMemo,
+    useEffect,
+    useRef,
+} from "react";
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
-    TextInput,
     Platform,
     RefreshControl,
     ActivityIndicator,
@@ -19,113 +24,59 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Header from "../../components/common/Header";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
 
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+const API_BASE_URL = "https://srv1168036.hstgr.cloud/api";
+const PASSBOOK_API =
+    "https://deployed-site-o2d3.onrender.com/api/budgets/passbook";
 
 const ClientPassbookScreen = () => {
     // ---- API DATA STATE ----
-    const [campaigns, setCampaigns] = useState([]);
-    const [payments, setPayments] = useState([]);
+    const [allCampaigns, setAllCampaigns] = useState([]);
+    const [allRetailers, setAllRetailers] = useState([]);
+    const [passbookData, setPassbookData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
     // ---- FILTER STATE ----
-    const [selectedCampaigns, setSelectedCampaigns] = useState([]);
-    const [selectedRegions, setSelectedRegions] = useState([]);
     const [selectedStates, setSelectedStates] = useState([]);
-    const [selectedPayment, setSelectedPayment] = useState(null);
-    const [selectedDateRange, setSelectedDateRange] = useState(null);
-    const [selectedOutlet, setSelectedOutlet] = useState(null);
-    const [showCustomDate, setShowCustomDate] = useState(false);
-    const [fromDate, setFromDate] = useState("");
-    const [toDate, setToDate] = useState("");
+    const [selectedCampaigns, setSelectedCampaigns] = useState([]);
+    const [selectedRetailers, setSelectedRetailers] = useState([]);
+
+    // ---- REFS FOR STABLE STATE ACCESS ----
+    const selectedStatesRef = useRef([]);
+    const selectedCampaignsRef = useRef([]);
+    const selectedRetailersRef = useRef([]);
+
+    // Update refs whenever state changes
+    useEffect(() => {
+        selectedStatesRef.current = selectedStates;
+    }, [selectedStates]);
+
+    useEffect(() => {
+        selectedCampaignsRef.current = selectedCampaigns;
+    }, [selectedCampaigns]);
+
+    useEffect(() => {
+        selectedRetailersRef.current = selectedRetailers;
+    }, [selectedRetailers]);
+
+    // ---- DROPDOWN ITEMS STATE ----
+    const [stateItems, setStateItems] = useState([]);
+    const [campaignItems, setCampaignItems] = useState([]);
+    const [retailerItems, setRetailerItems] = useState([]);
 
     // ---- DROPDOWN OPEN STATES ----
-    const [campaignOpen, setCampaignOpen] = useState(false);
-    const [regionOpen, setRegionOpen] = useState(false);
     const [stateOpen, setStateOpen] = useState(false);
-    const [paymentOpen, setPaymentOpen] = useState(false);
-    const [outletOpen, setOutletOpen] = useState(false);
-    const [dateOpen, setDateOpen] = useState(false);
-
-    // ---- STATIC FILTER OPTIONS ----
-    const regionOptions = [
-        { label: "North", value: "north" },
-        { label: "South", value: "south" },
-        { label: "East", value: "east" },
-        { label: "West", value: "west" },
-    ];
-
-    const regionStates = {
-        North: [
-            "Jammu and Kashmir",
-            "Ladakh",
-            "Himachal Pradesh",
-            "Punjab",
-            "Haryana",
-            "Uttarakhand",
-            "Uttar Pradesh",
-            "Delhi",
-            "Chandigarh",
-        ],
-        South: [
-            "Andhra Pradesh",
-            "Karnataka",
-            "Kerala",
-            "Tamil Nadu",
-            "Telangana",
-            "Puducherry",
-            "Lakshadweep",
-        ],
-        East: [
-            "Bihar",
-            "Jharkhand",
-            "Odisha",
-            "West Bengal",
-            "Sikkim",
-            "Andaman and Nicobar Islands",
-            "Arunachal Pradesh",
-            "Assam",
-            "Manipur",
-            "Meghalaya",
-            "Mizoram",
-            "Nagaland",
-            "Tripura",
-        ],
-        West: [
-            "Rajasthan",
-            "Gujarat",
-            "Maharashtra",
-            "Madhya Pradesh",
-            "Goa",
-            "Chhattisgarh",
-            "Dadra and Nagar Haveli and Daman and Diu",
-        ],
-    };
-
-    const dateOptions = [
-        { label: "Today", value: "today" },
-        { label: "Yesterday", value: "yesterday" },
-        { label: "Last 7 Days", value: "last7days" },
-        { label: "Last 30 Days", value: "last30days" },
-        { label: "This Month", value: "thisMonth" },
-        { label: "Last Month", value: "lastMonth" },
-        { label: "Custom Range", value: "custom" },
-    ];
-
-    const paymentOptions = [
-        { label: "Paid", value: "paid" },
-        { label: "Pending", value: "pending" },
-        { label: "Failed", value: "failed" },
-    ];
+    const [campaignOpen, setCampaignOpen] = useState(false);
+    const [retailerOpen, setRetailerOpen] = useState(false);
 
     // ---- FETCH DATA FROM API ----
     useFocusEffect(
         useCallback(() => {
-            fetchPassbookData();
+            fetchAllData();
         }, [])
     );
 
-    const fetchPassbookData = async () => {
+    const fetchAllData = async () => {
         try {
             setLoading(true);
 
@@ -140,44 +91,31 @@ const ClientPassbookScreen = () => {
                 "Content-Type": "application/json",
             };
 
-            console.log("📤 Fetching passbook data...");
+            // 1️⃣ Fetch Client Campaigns
+            const campaignsRes = await fetch(
+                `${API_BASE_URL}/client/client/campaigns`,
+                { headers }
+            );
+            const campaignsData = await campaignsRes.json();
+            const campaigns = (campaignsData.campaigns || []).filter(
+                (c) => c.isActive === true
+            );
+            console.log(`✅ Loaded ${campaigns.length} campaigns`);
 
-            // Fetch campaigns and payments in parallel
-            const [campaignsRes, paymentsRes] = await Promise.allSettled([
-                fetch(`${API_BASE_URL}/client/client/campaigns`, { headers }),
-                fetch(`${API_BASE_URL}/client/client/payments`, { headers }),
-            ]);
+            // 2️⃣ Fetch Retailers
+            const retailersRes = await fetch(
+                `${API_BASE_URL}/admin/retailers`,
+                { headers }
+            );
+            const retailersData = await retailersRes.json();
+            const retailers = retailersData.retailers || [];
+            console.log(`✅ Loaded ${retailers.length} retailers`);
 
-            // Process Campaigns
-            if (campaignsRes.status === "fulfilled" && campaignsRes.value.ok) {
-                const campData = await campaignsRes.value.json();
-                console.log(
-                    "✅ Campaigns loaded:",
-                    campData.campaigns?.length || 0
-                );
-                setCampaigns(campData.campaigns || []);
-            } else {
-                console.error("❌ Campaigns fetch failed");
-                setCampaigns([]);
-            }
-
-            // Process Payments
-            if (paymentsRes.status === "fulfilled" && paymentsRes.value.ok) {
-                const payData = await paymentsRes.value.json();
-                console.log(
-                    "✅ Payments loaded:",
-                    payData.payments?.length || 0
-                );
-                setPayments(payData.payments || []);
-            } else {
-                console.error("❌ Payments fetch failed");
-                setPayments([]);
-            }
-
-            console.log("✅ Passbook data loaded");
+            setAllCampaigns(campaigns);
+            setAllRetailers(retailers);
         } catch (error) {
-            console.error("❌ Passbook fetch error:", error);
-            Alert.alert("Error", "Failed to load passbook data.");
+            console.error("❌ Fetch error:", error);
+            Alert.alert("Error", "Failed to load data.");
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -186,133 +124,277 @@ const ClientPassbookScreen = () => {
 
     const onRefresh = () => {
         setRefreshing(true);
-        fetchPassbookData();
+        fetchAllData();
     };
 
-    // ---- DYNAMIC OPTIONS FROM API DATA ----
-    const campaignOptions = useMemo(() => {
-        return campaigns.map((c) => ({
-            label: c.name || c.campaignName,
-            value: c._id,
-        }));
-    }, [campaigns]);
-
-    const outletOptions = useMemo(() => {
-        const uniqueOutlets = [
+    // ---- COMPUTE STATE OPTIONS ----
+    const stateOptions = useMemo(() => {
+        const uniqueStates = [
             ...new Set(
-                payments.map(
-                    (p) => p.retailerShopName || p.retailerName || "Unknown"
-                )
+                allRetailers
+                    .map((r) => r.shopDetails?.shopAddress?.state)
+                    .filter(Boolean)
             ),
         ];
-        return uniqueOutlets.map((name) => ({
-            label: name,
-            value: name,
-        }));
-    }, [payments]);
+        return uniqueStates.map((s) => ({ label: s, value: s }));
+    }, [allRetailers]);
 
-    const stateOptions = useMemo(() => {
-        if (!selectedRegions || selectedRegions.length === 0) {
-            const allStates = Object.values(regionStates).flat();
-            return allStates.map((state) => ({
-                label: state,
-                value: state.toLowerCase().replace(/\s+/g, "-"),
-            }));
+    useEffect(() => {
+        setStateItems(stateOptions);
+    }, [stateOptions]);
+
+    // ---- COMPUTE CAMPAIGN OPTIONS (FILTERED BY STATE) ----
+    const campaignOptions = useMemo(() => {
+        let filteredCampaigns = [...allCampaigns];
+
+        if (selectedStates.length > 0) {
+            const stateValues = selectedStates.map((s) => s.value);
+            filteredCampaigns = filteredCampaigns.filter((c) => {
+                if (Array.isArray(c.states)) {
+                    return c.states.some((state) =>
+                        stateValues.includes(state)
+                    );
+                }
+                return stateValues.includes(c.state);
+            });
         }
 
-        const filteredStates = selectedRegions.flatMap((region) => {
-            const regionKey = region.label;
-            return regionStates[regionKey] || [];
-        });
-
-        return filteredStates.map((state) => ({
-            label: state,
-            value: state.toLowerCase().replace(/\s+/g, "-"),
+        return filteredCampaigns.map((c) => ({
+            label: c.name,
+            value: c._id,
         }));
-    }, [selectedRegions]);
+    }, [allCampaigns, selectedStates]);
 
-    // ---- FILTER HANDLERS ----
-    const handleRegionChange = (items) => {
-        setSelectedRegions(items);
-        if (!items || items.length === 0) {
-            setSelectedStates([]);
-            return;
+    useEffect(() => {
+        setCampaignItems(campaignOptions);
+    }, [campaignOptions]);
+
+    // ---- COMPUTE RETAILER OPTIONS (FILTERED BY STATE & CAMPAIGN) ----
+    const retailerOptions = useMemo(() => {
+        let filteredRetailers = [...allRetailers];
+
+        if (selectedStates.length > 0) {
+            const stateValues = selectedStates.map((s) => s.value);
+            filteredRetailers = filteredRetailers.filter((r) =>
+                stateValues.includes(r.shopDetails?.shopAddress?.state)
+            );
         }
 
-        const validStateLabels = items.flatMap(
-            (region) => regionStates[region.label] || []
-        );
-        const filteredStates = selectedStates.filter((state) =>
-            validStateLabels.some(
-                (s) => s.toLowerCase().replace(/\s+/g, "-") === state.value
-            )
-        );
-        setSelectedStates(filteredStates);
-    };
+        if (selectedCampaigns.length > 0) {
+            const campaignIds = selectedCampaigns.map((c) => c.value);
+            filteredRetailers = filteredRetailers.filter((r) => {
+                const assignedToCampaign =
+                    Array.isArray(r.assignedCampaigns) &&
+                    r.assignedCampaigns.some((ac) =>
+                        campaignIds.includes(
+                            typeof ac === "string" ? ac : ac._id
+                        )
+                    );
+                return assignedToCampaign;
+            });
+        }
 
-    const handleDateChange = (item) => {
-        setSelectedDateRange(item);
-        if (item?.value === "custom") {
-            setShowCustomDate(true);
+        return filteredRetailers.map((r) => ({
+            label: `${r.uniqueId} - ${r.shopDetails?.shopName || "N/A"}`,
+            value: r.uniqueId,
+        }));
+    }, [allRetailers, selectedStates, selectedCampaigns]);
+
+    useEffect(() => {
+        setRetailerItems(retailerOptions);
+    }, [retailerOptions]);
+
+    // ---- FETCH PASSBOOK DATA WHEN FILTERS CHANGE ----
+    const fetchPassbookData = useCallback(async () => {
+        try {
+            const token = await AsyncStorage.getItem("userToken");
+            const stateValues = selectedStates.map((s) => s.value);
+
+            let retailersToFetch = allRetailers.filter((r) =>
+                stateValues.includes(r.shopDetails?.shopAddress?.state)
+            );
+
+            if (selectedRetailers.length > 0) {
+                const retailerCodes = selectedRetailers.map((r) => r.value);
+                retailersToFetch = retailersToFetch.filter((r) =>
+                    retailerCodes.includes(r.uniqueId)
+                );
+            }
+
+            const allPassbookData = [];
+
+            console.log(
+                `📞 Fetching passbook for ${retailersToFetch.length} retailers...`
+            );
+
+            for (const retailer of retailersToFetch) {
+                const response = await fetch(
+                    `${PASSBOOK_API}?retailerId=${retailer._id}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.data && data.data.length > 0) {
+                        allPassbookData.push(...data.data);
+                    }
+                }
+            }
+
+            const clientCampaignIds = allCampaigns.map((c) => c._id);
+            const campaignIds = selectedCampaigns.map((c) => c.value);
+            const flattenedData = [];
+
+            allPassbookData.forEach((budgetRecord) => {
+                if (!stateValues.includes(budgetRecord.state)) return;
+
+                budgetRecord.campaigns.forEach((campaign) => {
+                    const campaignIdStr =
+                        campaign.campaignId._id || campaign.campaignId;
+
+                    if (!clientCampaignIds.includes(campaignIdStr)) return;
+
+                    if (
+                        selectedCampaigns.length === 0 ||
+                        campaignIds.includes(campaignIdStr)
+                    ) {
+                        flattenedData.push({
+                            outletCode: budgetRecord.outletCode,
+                            shopName: budgetRecord.shopName,
+                            state: budgetRecord.state,
+                            campaignName: campaign.campaignName,
+                            campaignId: campaignIdStr,
+                            tca: campaign.tca,
+                            cPaid: campaign.cPaid,
+                            cPending: campaign.cPending,
+                        });
+                    }
+                });
+            });
+
+            console.log(`✅ Found ${flattenedData.length} passbook records`);
+            setPassbookData(flattenedData);
+        } catch (error) {
+            console.error("❌ Error fetching passbook:", error);
+            Alert.alert("Error", "Failed to fetch passbook data");
+        }
+    }, [
+        selectedStates,
+        selectedCampaigns,
+        selectedRetailers,
+        allCampaigns,
+        allRetailers,
+    ]);
+
+    useEffect(() => {
+        if (
+            selectedStates.length > 0 &&
+            allCampaigns.length > 0 &&
+            allRetailers.length > 0
+        ) {
+            fetchPassbookData();
         } else {
-            setShowCustomDate(false);
-            setFromDate("");
-            setToDate("");
+            setPassbookData([]);
         }
-    };
-
-    // ---- FILTERED PAYMENTS ----
-    const filteredPayments = useMemo(() => {
-        return payments.filter((payment) => {
-            // Filter by outlet
-            const shopName = payment.retailerShopName || payment.retailerName;
-            if (selectedOutlet && shopName !== selectedOutlet.value) {
-                return false;
-            }
-
-            // Filter by campaign
-            if (
-                selectedCampaigns.length > 0 &&
-                !selectedCampaigns.some((c) => c.value === payment.campaignId)
-            ) {
-                return false;
-            }
-
-            // Filter by payment status
-            if (
-                selectedPayment &&
-                payment.paymentStatus !== selectedPayment.value
-            ) {
-                return false;
-            }
-
-            // TODO: Add date range filtering logic here
-
-            return true;
-        });
-    }, [payments, selectedOutlet, selectedCampaigns, selectedPayment]);
+    }, [
+        selectedStates,
+        selectedCampaigns,
+        selectedRetailers,
+        fetchPassbookData,
+    ]);
 
     // ---- CALCULATE SUMMARY ----
     const summary = useMemo(() => {
-        const totalAmount = filteredPayments.reduce(
-            (sum, p) => sum + (p.totalAmount || 0),
+        const totalAmount = passbookData.reduce(
+            (sum, p) => sum + (p.tca || 0),
             0
         );
-        const totalPaid = filteredPayments.reduce(
-            (sum, p) => sum + (p.amountPaid || 0),
+        const totalPaid = passbookData.reduce(
+            (sum, p) => sum + (p.cPaid || 0),
             0
         );
-        const totalRemaining = filteredPayments.reduce(
-            (sum, p) => sum + (p.remainingAmount || 0),
+        const totalPending = passbookData.reduce(
+            (sum, p) => sum + (p.cPending || 0),
             0
         );
 
         return {
             totalAmount,
             totalPaid,
-            totalRemaining,
+            totalPending,
         };
-    }, [filteredPayments]);
+    }, [passbookData]);
+
+    // ---- HANDLE FILTER CHANGES ----
+    const handleStateChange = (callback) => {
+        const currentValues = selectedStatesRef.current.map((s) => s.value);
+        const newValues =
+            typeof callback === "function" ? callback(currentValues) : callback;
+
+        let newState = [];
+        if (Array.isArray(newValues) && newValues.length > 0) {
+            newState = stateItems.filter((item) =>
+                newValues.includes(item.value)
+            );
+        }
+
+        setSelectedStates(newState);
+        if (
+            JSON.stringify(currentValues.sort()) !==
+            JSON.stringify(newValues.sort())
+        ) {
+            setSelectedCampaigns([]);
+            setSelectedRetailers([]);
+        }
+    };
+
+    const handleCampaignChange = (callback) => {
+        const currentValues = selectedCampaignsRef.current.map((c) => c.value);
+        const newValues =
+            typeof callback === "function" ? callback(currentValues) : callback;
+
+        let newCampaigns = [];
+        if (Array.isArray(newValues) && newValues.length > 0) {
+            newCampaigns = campaignItems.filter((item) =>
+                newValues.includes(item.value)
+            );
+        }
+
+        setSelectedCampaigns(newCampaigns);
+        if (
+            JSON.stringify(currentValues.sort()) !==
+            JSON.stringify(newValues.sort())
+        ) {
+            setSelectedRetailers([]);
+        }
+    };
+
+    const handleRetailerChange = (callback) => {
+        const currentValues = selectedRetailersRef.current.map((r) => r.value);
+        const newValues =
+            typeof callback === "function" ? callback(currentValues) : callback;
+
+        let newRetailers = [];
+        if (Array.isArray(newValues) && newValues.length > 0) {
+            newRetailers = retailerItems.filter((item) =>
+                newValues.includes(item.value)
+            );
+        }
+
+        setSelectedRetailers(newRetailers);
+    };
+
+    // ---- CLEAR FILTERS ----
+    const handleClearFilters = () => {
+        setSelectedStates([]);
+        setSelectedCampaigns([]);
+        setSelectedRetailers([]);
+        setPassbookData([]);
+    };
 
     if (loading) {
         return (
@@ -347,178 +429,135 @@ const ClientPassbookScreen = () => {
                 }
             >
                 <View style={styles.headingContainer}>
-                    <Text style={styles.headingText}>Passbook</Text>
+                    <Text style={styles.headingText}>Client Passbook</Text>
                 </View>
 
                 {/* Filters */}
                 <View style={styles.filtersContainer}>
-                    {/* Row 1: Campaign, Region, State */}
-                    <View style={styles.filterRow}>
-                        <View style={{ flex: 1, zIndex: 9000 }}>
-                            <SearchableDropdown
-                                label="Campaign"
-                                placeholder="Select Campaign"
-                                open={campaignOpen}
-                                value={selectedCampaigns}
-                                items={campaignOptions}
-                                setOpen={setCampaignOpen}
-                                setValue={setSelectedCampaigns}
-                                searchable={true}
-                                multiple={true}
-                                zIndex={9000}
-                            />
-                        </View>
+                    <Text style={styles.filterTitle}>Filter Options</Text>
 
-                        <View style={{ flex: 1, zIndex: 8000 }}>
-                            <SearchableDropdown
-                                label="Region"
-                                placeholder="Select Region"
-                                open={regionOpen}
-                                value={selectedRegions}
-                                items={regionOptions}
-                                setOpen={setRegionOpen}
-                                setValue={handleRegionChange}
-                                searchable={true}
-                                multiple={true}
-                                zIndex={8000}
-                            />
-                        </View>
-
-                        <View style={{ flex: 1, zIndex: 7000 }}>
-                            <SearchableDropdown
-                                label="State"
-                                placeholder="Select State"
-                                open={stateOpen}
-                                value={selectedStates}
-                                items={stateOptions}
-                                setOpen={setStateOpen}
-                                setValue={setSelectedStates}
-                                searchable={true}
-                                multiple={true}
-                                zIndex={7000}
-                            />
-                        </View>
+                    {/* State Filter - Required */}
+                    <View style={{ zIndex: 9000, marginBottom: 10 }}>
+                        <SearchableDropdown
+                            label="State *"
+                            placeholder="Select States"
+                            open={stateOpen}
+                            value={selectedStates.map((s) => s.value)}
+                            items={stateItems}
+                            setOpen={setStateOpen}
+                            setValue={handleStateChange}
+                            setItems={setStateItems}
+                            searchable={true}
+                            multiple={true}
+                            zIndex={9000}
+                        />
                     </View>
 
-                    {/* Row 2: Payment, Outlet, Date */}
-                    <View style={styles.filterRow}>
-                        <View style={{ flex: 1, zIndex: 6000 }}>
-                            <SearchableDropdown
-                                label="Payment Status"
-                                placeholder="Select Payment"
-                                open={paymentOpen}
-                                value={selectedPayment}
-                                items={paymentOptions}
-                                setOpen={setPaymentOpen}
-                                setValue={setSelectedPayment}
-                                searchable={true}
-                                multiple={false}
-                                zIndex={6000}
-                            />
-                        </View>
-
-                        <View style={{ flex: 1, zIndex: 5000 }}>
-                            <SearchableDropdown
-                                label="Outlet"
-                                placeholder="Select Outlet"
-                                open={outletOpen}
-                                value={selectedOutlet}
-                                items={outletOptions}
-                                setOpen={setOutletOpen}
-                                setValue={setSelectedOutlet}
-                                searchable={true}
-                                multiple={false}
-                                zIndex={5000}
-                            />
-                        </View>
-
-                        <View style={{ flex: 1, zIndex: 4000 }}>
-                            <SearchableDropdown
-                                label="Date"
-                                placeholder="Select Date"
-                                open={dateOpen}
-                                value={selectedDateRange}
-                                items={dateOptions}
-                                setOpen={setDateOpen}
-                                setValue={handleDateChange}
-                                searchable={true}
-                                multiple={false}
-                                zIndex={4000}
-                            />
-                        </View>
+                    {/* Campaign Filter - Optional */}
+                    <View style={{ zIndex: 8000, marginBottom: 10 }}>
+                        <SearchableDropdown
+                            label="Campaign (Optional)"
+                            placeholder="All Campaigns"
+                            open={campaignOpen}
+                            value={selectedCampaigns.map((c) => c.value)}
+                            items={campaignItems}
+                            setOpen={setCampaignOpen}
+                            setValue={handleCampaignChange}
+                            setItems={setCampaignItems}
+                            searchable={true}
+                            multiple={true}
+                            zIndex={8000}
+                        />
                     </View>
 
-                    {/* Custom Date Range */}
-                    {showCustomDate && (
-                        <View style={styles.customDateRow}>
-                            <View style={styles.customDateInputWrapper}>
-                                <Text style={styles.customDateLabel}>
-                                    From Date
-                                </Text>
-                                <TextInput
-                                    style={styles.customDateInput}
-                                    placeholder="YYYY-MM-DD"
-                                    placeholderTextColor="#999"
-                                    value={fromDate}
-                                    onChangeText={setFromDate}
-                                />
-                            </View>
-                            <View style={styles.customDateInputWrapper}>
-                                <Text style={styles.customDateLabel}>
-                                    To Date
-                                </Text>
-                                <TextInput
-                                    style={styles.customDateInput}
-                                    placeholder="YYYY-MM-DD"
-                                    placeholderTextColor="#999"
-                                    value={toDate}
-                                    onChangeText={setToDate}
-                                />
-                            </View>
-                        </View>
+                    {/* Retailer Filter - Optional */}
+                    <View style={{ zIndex: 7000, marginBottom: 10 }}>
+                        <SearchableDropdown
+                            label="Retailer (Optional)"
+                            placeholder="All Retailers"
+                            open={retailerOpen}
+                            value={selectedRetailers.map((r) => r.value)}
+                            items={retailerItems}
+                            setOpen={setRetailerOpen}
+                            setValue={handleRetailerChange}
+                            setItems={setRetailerItems}
+                            searchable={true}
+                            multiple={true}
+                            zIndex={7000}
+                        />
+                    </View>
+
+                    {(selectedStates.length > 0 ||
+                        selectedCampaigns.length > 0 ||
+                        selectedRetailers.length > 0) && (
+                        <Text
+                            style={styles.clearButton}
+                            onPress={handleClearFilters}
+                        >
+                            Clear All Filters
+                        </Text>
                     )}
                 </View>
 
                 {/* Summary Cards */}
-                <View style={styles.summaryRow}>
-                    <View style={styles.summaryCard}>
-                        <Ionicons
-                            name="wallet-outline"
-                            size={24}
-                            color="#007AFF"
-                        />
-                        <Text style={styles.summaryValue}>
-                            ₹{summary.totalAmount.toLocaleString()}
-                        </Text>
-                        <Text style={styles.summaryLabel}>Total Amount</Text>
+                {passbookData.length > 0 && (
+                    <View style={styles.summaryRow}>
+                        <View style={styles.summaryCard}>
+                            <Ionicons
+                                name="wallet-outline"
+                                size={24}
+                                color="#007AFF"
+                            />
+                            <Text style={styles.summaryValue}>
+                                ₹{summary.totalAmount.toLocaleString()}
+                            </Text>
+                            <Text style={styles.summaryLabel}>
+                                Total Amount (TCA)
+                            </Text>
+                        </View>
+                        <View style={styles.summaryCard}>
+                            <Ionicons
+                                name="checkmark-circle-outline"
+                                size={24}
+                                color="#28a745"
+                            />
+                            <Text style={styles.summaryValue}>
+                                ₹{summary.totalPaid.toLocaleString()}
+                            </Text>
+                            <Text style={styles.summaryLabel}>Total Paid</Text>
+                        </View>
+                        <View style={styles.summaryCard}>
+                            <Ionicons
+                                name="time-outline"
+                                size={24}
+                                color="#FFA500"
+                            />
+                            <Text style={styles.summaryValue}>
+                                ₹{summary.totalPending.toLocaleString()}
+                            </Text>
+                            <Text style={styles.summaryLabel}>Pending</Text>
+                        </View>
                     </View>
-                    <View style={styles.summaryCard}>
-                        <Ionicons
-                            name="checkmark-circle-outline"
-                            size={24}
-                            color="#28a745"
-                        />
-                        <Text style={styles.summaryValue}>
-                            ₹{summary.totalPaid.toLocaleString()}
-                        </Text>
-                        <Text style={styles.summaryLabel}>Total Paid</Text>
-                    </View>
-                    <View style={styles.summaryCard}>
-                        <Ionicons
-                            name="time-outline"
-                            size={24}
-                            color="#FFA500"
-                        />
-                        <Text style={styles.summaryValue}>
-                            ₹{summary.totalRemaining.toLocaleString()}
-                        </Text>
-                        <Text style={styles.summaryLabel}>Remaining</Text>
-                    </View>
-                </View>
+                )}
 
-                {/* Payment List */}
+                {/* Records List */}
                 <View style={styles.listContainer}>
-                    {filteredPayments.length === 0 ? (
+                    {selectedStates.length === 0 ? (
+                        <View style={styles.noTransactions}>
+                            <Ionicons
+                                name="filter-outline"
+                                size={60}
+                                color="#ccc"
+                            />
+                            <Text style={styles.noTransactionsText}>
+                                Selection Required
+                            </Text>
+                            <Text style={styles.noTransactionsSubtext}>
+                                Please select at least one state to view
+                                passbook data
+                            </Text>
+                        </View>
+                    ) : passbookData.length === 0 ? (
                         <View style={styles.noTransactions}>
                             <Ionicons
                                 name="receipt-outline"
@@ -526,105 +565,81 @@ const ClientPassbookScreen = () => {
                                 color="#ccc"
                             />
                             <Text style={styles.noTransactionsText}>
-                                No payment records found
+                                No records found
                             </Text>
                             <Text style={styles.noTransactionsSubtext}>
                                 Try adjusting your filters
                             </Text>
                         </View>
                     ) : (
-                        filteredPayments.map((payment, index) => (
-                            <View key={index} style={styles.transactionCard}>
-                                <View style={styles.transactionHeader}>
-                                    <Text style={styles.outletText}>
-                                        {payment.retailerShopName ||
-                                            payment.retailerName}
+                        <>
+                            <Text style={styles.recordsCount}>
+                                Passbook Records ({passbookData.length})
+                            </Text>
+                            {passbookData.map((record, index) => (
+                                <View
+                                    key={`${record.outletCode}-${record.campaignId}-${index}`}
+                                    style={styles.transactionCard}
+                                >
+                                    <View style={styles.transactionHeader}>
+                                        <Text style={styles.outletText}>
+                                            {record.shopName}
+                                        </Text>
+                                        <Text style={styles.stateText}>
+                                            {record.state}
+                                        </Text>
+                                    </View>
+
+                                    <Text style={styles.campaignText}>
+                                        Campaign: {record.campaignName}
                                     </Text>
-                                    <View
-                                        style={[
-                                            styles.statusBadge,
-                                            {
-                                                backgroundColor:
-                                                    payment.paymentStatus ===
-                                                    "paid"
-                                                        ? "#d4edda"
-                                                        : payment.paymentStatus ===
-                                                          "pending"
-                                                        ? "#fff3cd"
-                                                        : "#f8d7da",
-                                            },
-                                        ]}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.statusText,
-                                                {
-                                                    color:
-                                                        payment.paymentStatus ===
-                                                        "paid"
-                                                            ? "#28a745"
-                                                            : payment.paymentStatus ===
-                                                              "pending"
-                                                            ? "#FFA500"
-                                                            : "#dc3545",
-                                                },
-                                            ]}
-                                        >
-                                            {payment.paymentStatus?.toUpperCase()}
-                                        </Text>
+
+                                    <View style={styles.amountRow}>
+                                        <View style={styles.amountColumn}>
+                                            <Text style={styles.amountLabel}>
+                                                Total Amount (TCA)
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.amountValue,
+                                                    { color: "#007AFF" },
+                                                ]}
+                                            >
+                                                ₹{record.tca?.toLocaleString()}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.amountColumn}>
+                                            <Text style={styles.amountLabel}>
+                                                Paid
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.amountValue,
+                                                    { color: "#28a745" },
+                                                ]}
+                                            >
+                                                ₹
+                                                {record.cPaid?.toLocaleString()}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.amountColumn}>
+                                            <Text style={styles.amountLabel}>
+                                                Pending
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.amountValue,
+                                                    { color: "#FFA500" },
+                                                ]}
+                                            >
+                                                ₹
+                                                {record.cPending?.toLocaleString()}
+                                            </Text>
+                                        </View>
                                     </View>
                                 </View>
-
-                                <Text style={styles.campaignText}>
-                                    Campaign: {payment.campaignName}
-                                </Text>
-
-                                <View style={styles.amountRow}>
-                                    <View style={styles.amountColumn}>
-                                        <Text style={styles.amountLabel}>
-                                            Total Amount
-                                        </Text>
-                                        <Text
-                                            style={[
-                                                styles.amountValue,
-                                                { color: "#007AFF" },
-                                            ]}
-                                        >
-                                            ₹
-                                            {payment.totalAmount?.toLocaleString()}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.amountColumn}>
-                                        <Text style={styles.amountLabel}>
-                                            Paid
-                                        </Text>
-                                        <Text
-                                            style={[
-                                                styles.amountValue,
-                                                { color: "#28a745" },
-                                            ]}
-                                        >
-                                            ₹
-                                            {payment.amountPaid?.toLocaleString()}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.amountColumn}>
-                                        <Text style={styles.amountLabel}>
-                                            Remaining
-                                        </Text>
-                                        <Text
-                                            style={[
-                                                styles.amountValue,
-                                                { color: "#dc3545" },
-                                            ]}
-                                        >
-                                            ₹
-                                            {payment.remainingAmount?.toLocaleString()}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        ))
+                            ))}
+                        </>
                     )}
                 </View>
             </ScrollView>
@@ -671,34 +686,17 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 12,
     },
-    filterRow: {
-        flexDirection: "row",
-        gap: 10,
-        marginBottom: 10,
-    },
-    customDateRow: {
-        flexDirection: "row",
-        gap: 10,
-        marginTop: 10,
-    },
-    customDateInputWrapper: {
-        flex: 1,
-    },
-    customDateLabel: {
-        fontSize: 12,
+    filterTitle: {
+        fontSize: 16,
         fontWeight: "600",
         color: "#333",
-        marginBottom: 4,
+        marginBottom: 12,
     },
-    customDateInput: {
-        backgroundColor: "#F5F5F5",
-        borderWidth: 1,
-        borderColor: "#E0E0E0",
-        borderRadius: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
+    clearButton: {
         fontSize: 13,
-        color: "#333",
+        color: "#E4002B",
+        textDecorationLine: "underline",
+        marginTop: 10,
     },
     summaryRow: {
         flexDirection: "row",
@@ -727,13 +725,19 @@ const styles = StyleSheet.create({
         color: "#333",
     },
     summaryLabel: {
-        fontSize: 12,
+        fontSize: 11,
         color: "#666",
     },
     listContainer: {
         marginTop: 15,
         marginHorizontal: 16,
         marginBottom: 20,
+    },
+    recordsCount: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#333",
+        marginBottom: 12,
     },
     transactionCard: {
         backgroundColor: "#fff",
@@ -755,14 +759,13 @@ const styles = StyleSheet.create({
         color: "#333",
         flex: 1,
     },
-    statusBadge: {
-        paddingHorizontal: 10,
+    stateText: {
+        fontSize: 12,
+        color: "#666",
+        backgroundColor: "#F5F5F5",
+        paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: 12,
-    },
-    statusText: {
-        fontSize: 11,
-        fontWeight: "600",
+        borderRadius: 6,
     },
     campaignText: {
         fontSize: 13,
@@ -803,6 +806,8 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: "#bbb",
         marginTop: 5,
+        textAlign: "center",
+        paddingHorizontal: 20,
     },
 });
 
