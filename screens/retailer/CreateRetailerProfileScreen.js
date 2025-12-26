@@ -1,7 +1,11 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
+import * as RootNavigation from "../../navigation/RootNavigation";
 import { StatusBar } from "expo-status-bar";
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -14,19 +18,18 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import DropDownPicker from "react-native-dropdown-picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import PennyTransferModal from "../../components/PennyTransferModal";
 import SuccessModal from "../../components/SuccessModal";
-import PhotoPicker from "../../components/common/PhotoPicker";
+import DatePicker from "../../components/common/DatePicker";
 import Header from "../../components/common/Header";
+import PhotoPicker from "../../components/common/PhotoPicker";
+import TermsAndConditions from "../../components/data/TermsAndConditions";
+import { bankOptions, stateOptions } from "../../components/data/common";
 
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
-
-// TODO: Isme backend mei dikkat hai toh woh anubhav bhaiya theek karenge then i'll change it here. Isme woh pincode nahi le rha toh ig data kaise backend mei parse ho rha usme problem hai.
+const API_BASE_URL = "https://deployed-site-o2d3.onrender.com/api";
 
 const CreateRetailerProfileScreen = ({ navigation }) => {
     // Loading & Profile States
@@ -39,7 +42,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const [contactNo, setContactNo] = useState("");
     const [altContactNo, setAltContactNo] = useState("");
     const [email, setEmail] = useState("");
-    const [dob, setDob] = useState("");
+    const [dob, setDob] = useState(null);
 
     // Gender Dropdown
     const [genderOpen, setGenderOpen] = useState(false);
@@ -48,6 +51,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         { label: "Male", value: "Male" },
         { label: "Female", value: "Female" },
         { label: "Other", value: "Other" },
+        { label: "Prefer not to say", value: "Prefer not to say" },
     ]);
 
     // Govt ID Type Dropdown
@@ -58,6 +62,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         { label: "PAN", value: "pan" },
         { label: "Voter ID", value: "voter_id" },
         { label: "Driving License", value: "driving_license" },
+        { label: "Other", value: "Other" },
     ]);
     const [govtIdNumber, setGovtIdNumber] = useState("");
     const [govtIdError, setGovtIdError] = useState("");
@@ -69,18 +74,23 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const [businessTypeOpen, setBusinessTypeOpen] = useState(false);
     const [businessType, setBusinessType] = useState(null);
     const [businessTypeOptions] = useState([
-        { label: "Retail", value: "retail" },
-        { label: "Wholesale", value: "wholesale" },
-        { label: "Both", value: "both" },
+        { label: "Grocery Retailer", value: "Grocery Retailer" },
+        { label: "Wholesale", value: "Wholesale" },
+        { label: "Key Accounts", value: "Key Accounts" },
+        { label: "Salon / Beauty Parlour", value: "Salon / Beauty Parlour" },
+        { label: "Self Service Outlet", value: "Self Service Outlet" },
+        { label: "Chemist Outlet", value: "Chemist Outlet" },
+        { label: "Other", value: "Other" },
     ]);
 
     // Ownership Type Dropdown
     const [ownershipTypeOpen, setOwnershipTypeOpen] = useState(false);
     const [ownershipType, setOwnershipType] = useState(null);
     const [ownershipTypeOptions] = useState([
-        { label: "Owned", value: "owned" },
-        { label: "Rented", value: "rented" },
-        { label: "Leased", value: "leased" },
+        { label: "Sole Proprietorship", value: "Sole Proprietorship" },
+        { label: "Partnership", value: "Partnership" },
+        { label: "Private Ltd", value: "Private Ltd" },
+        { label: "LLP", value: "LLP" },
     ]);
 
     const [gstNo, setGstNo] = useState("");
@@ -98,56 +108,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     // State Dropdown
     const [stateOpen, setStateOpen] = useState(false);
     const [state, setState] = useState(null);
-    const [stateOptions] = useState([
-        { label: "Andhra Pradesh", value: "Andhra Pradesh" },
-        { label: "Arunachal Pradesh", value: "Arunachal Pradesh" },
-        { label: "Assam", value: "Assam" },
-        { label: "Bihar", value: "Bihar" },
-        { label: "Chhattisgarh", value: "Chhattisgarh" },
-        { label: "Goa", value: "Goa" },
-        { label: "Gujarat", value: "Gujarat" },
-        { label: "Haryana", value: "Haryana" },
-        { label: "Himachal Pradesh", value: "Himachal Pradesh" },
-        { label: "Jharkhand", value: "Jharkhand" },
-        { label: "Karnataka", value: "Karnataka" },
-        { label: "Kerala", value: "Kerala" },
-        { label: "Madhya Pradesh", value: "Madhya Pradesh" },
-        { label: "Maharashtra", value: "Maharashtra" },
-        { label: "Manipur", value: "Manipur" },
-        { label: "Meghalaya", value: "Meghalaya" },
-        { label: "Mizoram", value: "Mizoram" },
-        { label: "Nagaland", value: "Nagaland" },
-        { label: "Odisha", value: "Odisha" },
-        { label: "Punjab", value: "Punjab" },
-        { label: "Rajasthan", value: "Rajasthan" },
-        { label: "Sikkim", value: "Sikkim" },
-        { label: "Tamil Nadu", value: "Tamil Nadu" },
-        { label: "Telangana", value: "Telangana" },
-        { label: "Tripura", value: "Tripura" },
-        { label: "Uttar Pradesh", value: "Uttar Pradesh" },
-        { label: "Uttarakhand", value: "Uttarakhand" },
-        { label: "West Bengal", value: "West Bengal" },
-        { label: "Delhi", value: "Delhi" },
-    ]);
 
     // Bank Details with Dropdown
     const [bankNameOpen, setBankNameOpen] = useState(false);
     const [bankName, setBankName] = useState(null);
-    const [bankOptions] = useState([
-        { label: "State Bank of India", value: "State Bank of India" },
-        { label: "HDFC Bank", value: "HDFC Bank" },
-        { label: "ICICI Bank", value: "ICICI Bank" },
-        { label: "Axis Bank", value: "Axis Bank" },
-        { label: "Kotak Mahindra Bank", value: "Kotak Mahindra Bank" },
-        { label: "Punjab National Bank", value: "Punjab National Bank" },
-        { label: "Bank of Baroda", value: "Bank of Baroda" },
-        { label: "Canara Bank", value: "Canara Bank" },
-        { label: "Union Bank of India", value: "Union Bank of India" },
-        { label: "IndusInd Bank", value: "IndusInd Bank" },
-        { label: "Yes Bank", value: "Yes Bank" },
-        { label: "IDFC First Bank", value: "IDFC First Bank" },
-        { label: "Other", value: "Other" },
-    ]);
     const [otherBankName, setOtherBankName] = useState("");
 
     const [accountNumber, setAccountNumber] = useState("");
@@ -156,6 +120,15 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const [ifsc, setIfsc] = useState("");
     const [ifscError, setIfscError] = useState("");
     const [branchName, setBranchName] = useState("");
+
+    // Track original bank details to detect changes
+    const [originalBankDetails, setOriginalBankDetails] = useState({
+        bankName: "",
+        accountNumber: "",
+        ifsc: "",
+        branchName: "",
+    });
+    const isUpdatingFromBackend = useRef(false);
 
     // OTP Verification
     const [showOtpInput, setShowOtpInput] = useState(false);
@@ -168,6 +141,12 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const [govtIdPhoto, setGovtIdPhoto] = useState(null);
     const [outletPhoto, setOutletPhoto] = useState(null);
     const [registrationForm, setRegistrationForm] = useState(null);
+
+    // Penny Check and T&C
+    const [pennyCheck, setPennyCheck] = useState(false);
+    const [pennyCheckLocked, setPennyCheckLocked] = useState(false);
+    const [tnc, setTnc] = useState(false);
+    const [tncLocked, setTncLocked] = useState(false);
 
     // Modals
     const [showPennyModal, setShowPennyModal] = useState(false);
@@ -182,6 +161,18 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
     const PINCODE_REGEX = /^\d{6}$/;
 
+    // Format date for input
+    const formatDateForInput = (dateString) => {
+        if (!dateString) return null;
+        return new Date(dateString);
+    };
+
+    // Format date for API
+    const formatDateForAPI = (date) => {
+        if (!date) return "";
+        return new Date(date).toISOString().split("T")[0];
+    };
+
     // Sanitize profile for AsyncStorage
     const sanitizeProfile = (data) => {
         return {
@@ -190,13 +181,16 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             retailerCode: data.retailerCode,
             name: data.name,
             contactNo: data.contactNo,
+            altContactNo: data.altContactNo,
             email: data.email,
+            dob: data.dob,
             gender: data.gender,
             govtIdType: data.govtIdType,
             govtIdNumber: data.govtIdNumber,
             phoneVerified: data.phoneVerified,
+            tnc: data.tnc,
+            pennyCheck: data.pennyCheck,
 
-            // Only URLs, never binary
             personPhoto:
                 typeof data.personPhoto === "string" ? data.personPhoto : null,
             govtIdPhoto:
@@ -296,13 +290,25 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     };
 
     const prefillForm = (data) => {
+        isUpdatingFromBackend.current = true;
+
         if (data.name) setName(data.name);
         if (data.contactNo) setContactNo(data.contactNo);
+        if (data.altContactNo) setAltContactNo(data.altContactNo);
         if (data.email) setEmail(data.email);
+        if (data.dob) setDob(formatDateForInput(data.dob));
         if (data.gender) setGender(data.gender);
         if (data.govtIdType) setGovtIdType(data.govtIdType);
         if (data.govtIdNumber) setGovtIdNumber(data.govtIdNumber);
         if (data.phoneVerified) setOtpVerified(true);
+
+        // T&C and Penny Check
+        const tncValue = data.tnc || false;
+        const pennyValue = data.pennyCheck || false;
+        setTnc(tncValue);
+        setPennyCheck(pennyValue);
+        if (tncValue) setTncLocked(true);
+        if (pennyValue) setPennyCheckLocked(true);
 
         if (data.shopDetails) {
             if (data.shopDetails.shopName)
@@ -324,10 +330,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 if (data.shopDetails.shopAddress.state)
                     setState(data.shopDetails.shopAddress.state);
                 if (data.shopDetails.shopAddress.pincode) {
-                    console.log(
-                        "Setting pincode:",
-                        data.shopDetails.shopAddress.pincode
-                    );
                     setPincode(data.shopDetails.shopAddress.pincode);
                 }
             }
@@ -337,18 +339,22 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         }
 
         if (data.bankDetails) {
-            if (data.bankDetails.bankName) {
-                if (
-                    bankOptions.find(
-                        (b) => b.value === data.bankDetails.bankName
-                    )
-                ) {
-                    setBankName(data.bankDetails.bankName);
-                } else {
-                    setBankName("Other");
-                    setOtherBankName(data.bankDetails.bankName);
-                }
+            const bankDetails = {
+                bankName: data.bankDetails.bankName || "",
+                accountNumber: data.bankDetails.accountNumber || "",
+                ifsc: data.bankDetails.IFSC || "",
+                branchName: data.bankDetails.branchName || "",
+            };
+
+            if (
+                bankOptions.find((b) => b.value === data.bankDetails.bankName)
+            ) {
+                setBankName(data.bankDetails.bankName);
+            } else {
+                setBankName("Other");
+                setOtherBankName(data.bankDetails.bankName);
             }
+
             if (data.bankDetails.accountNumber) {
                 setAccountNumber(data.bankDetails.accountNumber);
                 setConfirmAccountNumber(data.bankDetails.accountNumber);
@@ -356,11 +362,41 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             if (data.bankDetails.IFSC) setIfsc(data.bankDetails.IFSC);
             if (data.bankDetails.branchName)
                 setBranchName(data.bankDetails.branchName);
+
+            setOriginalBankDetails(bankDetails);
         }
 
         if (data.personPhoto) setPersonPhoto({ uri: data.personPhoto });
         if (data.govtIdPhoto) setGovtIdPhoto({ uri: data.govtIdPhoto });
+
+        setTimeout(() => {
+            isUpdatingFromBackend.current = false;
+        }, 100);
     };
+
+    // Detect bank detail changes and unlock penny check
+    useEffect(() => {
+        if (isUpdatingFromBackend.current) {
+            return;
+        }
+        const bankChanged =
+            bankName !== originalBankDetails.bankName ||
+            accountNumber !== originalBankDetails.accountNumber ||
+            ifsc !== originalBankDetails.ifsc ||
+            branchName !== originalBankDetails.branchName;
+
+        if (bankChanged && pennyCheckLocked) {
+            setPennyCheck(false);
+            setPennyCheckLocked(false);
+        }
+    }, [
+        bankName,
+        accountNumber,
+        ifsc,
+        branchName,
+        originalBankDetails,
+        pennyCheckLocked,
+    ]);
 
     // Validation Functions
     const validateGovtId = (value) => {
@@ -438,8 +474,8 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 copyToCacheDirectory: true,
             });
 
-            if (result.type !== "cancel") {
-                setGovtIdPhoto(result);
+            if (!result.canceled && result.assets) {
+                setGovtIdPhoto(result.assets[0]);
             }
         } catch (error) {
             Alert.alert("Error", "Failed to pick document");
@@ -469,8 +505,8 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 copyToCacheDirectory: true,
             });
 
-            if (result.type !== "cancel") {
-                setRegistrationForm(result);
+            if (!result.canceled && result.assets) {
+                setRegistrationForm(result.assets[0]);
             }
         } catch (error) {
             Alert.alert("Error", "Failed to pick document");
@@ -488,7 +524,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         }
 
         try {
-            // API call to send OTP
             Alert.alert("Success", "OTP sent to your contact number");
             setShowOtpInput(true);
             setResendTimer(60);
@@ -514,7 +549,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         }
 
         try {
-            // API call to verify OTP
             setOtpVerified(true);
             Alert.alert("Success", "Contact number verified successfully");
         } catch (error) {
@@ -522,7 +556,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         }
     };
 
-    // validations
+    // Validations
     const validateForm = () => {
         if (!name.trim()) {
             Alert.alert("Error", "Please enter your name");
@@ -532,10 +566,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             Alert.alert("Error", "Please enter a valid contact number");
             return false;
         }
-        // if (!otpVerified && !profileExists) {
-        //     Alert.alert("Error", "Please verify your contact number");
-        //     return false;
-        // }
         if (!govtIdType) {
             Alert.alert("Error", "Please select government ID type");
             return false;
@@ -597,6 +627,12 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             return false;
         }
 
+        // T&C validation
+        if (!tnc) {
+            Alert.alert("Error", "Please accept Terms & Conditions");
+            return false;
+        }
+
         if (!profileExists) {
             if (!personPhoto) {
                 Alert.alert("Error", "Please upload your photo");
@@ -628,123 +664,304 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 return;
             }
 
-            const formData = new FormData();
-            console.log("Submitting pincode:", pincode);
-
-            formData.append("name", name.trim());
-            formData.append("contactNo", contactNo);
-            formData.append("email", email.trim());
-            formData.append("gender", gender);
-            formData.append("govtIdType", govtIdType);
-            formData.append("govtIdNumber", govtIdNumber.trim());
-
-            formData.append("shopDetails[shopName]", shopName.trim());
-            formData.append("shopDetails[businessType]", businessType);
-            formData.append("shopDetails[ownershipType]", ownershipType);
-            formData.append("shopDetails[GSTNo]", gstNo.trim());
-            formData.append("shopDetails[PANCard]", panCard.trim());
-
-            formData.append(
-                "shopDetails[shopAddress][address]",
-                address1.trim()
-            );
-            formData.append(
-                "shopDetails[shopAddress][address2]",
-                address2.trim()
-            );
-            formData.append("shopDetails[shopAddress][city]", city.trim());
-            formData.append("shopDetails[shopAddress][state]", state);
-            formData.append(
-                "shopDetails[shopAddress][pincode]",
-                String(pincode).trim()
-            );
-
-            formData.append("bankDetails[bankName]", bankName);
-            formData.append("bankDetails[accountNumber]", accountNumber.trim());
-            formData.append("bankDetails[IFSC]", ifsc.trim());
-            formData.append("bankDetails[branchName]", branchName.trim());
-
-            // Upload files only if new
-            if (personPhoto && !personPhoto.uri?.startsWith("http")) {
-                formData.append("personPhoto", {
-                    uri: personPhoto.uri,
-                    type: personPhoto.type || "image/jpeg",
-                    name: personPhoto.fileName || "person.jpg",
-                });
-            }
-
-            if (govtIdPhoto && !govtIdPhoto.uri?.startsWith("http")) {
-                formData.append("govtIdPhoto", {
-                    uri: govtIdPhoto.uri,
-                    type:
-                        govtIdPhoto.mimeType ||
-                        govtIdPhoto.type ||
-                        "application/pdf",
-                    name: govtIdPhoto.name || "govtid.pdf",
-                });
-            }
-
-            if (outletPhoto && !outletPhoto.uri?.startsWith("http")) {
-                formData.append("outletPhoto", {
-                    uri: outletPhoto.uri,
-                    type: outletPhoto.type || "image/jpeg",
-                    name: outletPhoto.fileName || "outlet.jpg",
-                });
-            }
-
-            if (registrationForm) {
-                formData.append("registrationForm", {
-                    uri: registrationForm.uri,
-                    type: registrationForm.mimeType || "application/pdf",
-                    name: registrationForm.name || "registration.pdf",
-                });
-            }
-
             const endpoint = profileExists
                 ? `${API_BASE_URL}/retailer/me`
                 : `${API_BASE_URL}/admin/retailers`;
 
             const method = profileExists ? "PATCH" : "POST";
 
-            console.log(
-                `📤 ${profileExists ? "Updating" : "Creating"} profile...`
+            console.log(`📤 ${method} ${endpoint}`);
+
+            // ✅ Build multipart form data manually
+            const boundary = `----WebKitFormBoundary${Math.random()
+                .toString(36)
+                .substring(2)}`;
+            let bodyParts = [];
+
+            // Helper to add text field
+            const addField = (name, value) => {
+                bodyParts.push(
+                    `--${boundary}\r\n` +
+                        `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
+                        `${value}`
+                );
+            };
+
+            // Helper to add file field
+            const addFile = async (fieldName, file) => {
+                try {
+                    const fileContent = await FileSystem.readAsStringAsync(
+                        file.uri,
+                        {
+                            encoding: FileSystem.EncodingType.Base64,
+                        }
+                    );
+
+                    bodyParts.push(
+                        `--${boundary}\r\n` +
+                            `Content-Disposition: form-data; name="${fieldName}"; filename="${file.name}"\r\n` +
+                            `Content-Type: ${file.type}\r\n` +
+                            `Content-Transfer-Encoding: base64\r\n\r\n` +
+                            fileContent
+                    );
+
+                    return true;
+                } catch (error) {
+                    console.error(`Error reading file ${fieldName}:`, error);
+                    return false;
+                }
+            };
+
+            // Add all text fields
+            addField("name", name.trim());
+            addField("contactNo", contactNo);
+            addField("govtIdType", govtIdType);
+            addField("govtIdNumber", govtIdNumber.trim());
+            addField("shopName", shopName.trim());
+            addField("businessType", businessType);
+            addField("ownershipType", ownershipType);
+            addField("PANCard", panCard.trim());
+            addField("address", address1.trim());
+            addField("city", city.trim());
+            addField("state", state);
+            addField("pincode", String(pincode).trim());
+            addField(
+                "bankName",
+                bankName === "Other" ? otherBankName : bankName
             );
+            addField("accountNumber", accountNumber.trim());
+            addField("IFSC", ifsc.trim());
+            addField("branchName", branchName.trim());
+            addField("tnc", tnc.toString());
+            addField("pennyCheck", pennyCheck.toString());
 
-            const response = await fetch(endpoint, {
-                method,
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-            });
+            // Optional fields
+            if (email.trim()) addField("email", email.trim());
+            if (altContactNo) addField("altContactNo", altContactNo);
+            if (dob) addField("dob", formatDateForAPI(dob));
+            if (gender) addField("gender", gender);
+            if (gstNo.trim()) addField("GSTNo", gstNo.trim());
+            if (address2.trim()) addField("address2", address2.trim());
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                console.error("❌ API Error:", data);
-                Alert.alert("Error", data.message || "Failed to save profile");
-                setSubmitting(false);
-                return;
+            // Add files
+            if (personPhoto && !personPhoto.uri?.startsWith("http")) {
+                console.log("📸 Adding personPhoto");
+                await addFile("personPhoto", {
+                    uri: personPhoto.uri,
+                    name:
+                        personPhoto.fileName ||
+                        personPhoto.name ||
+                        `person_${Date.now()}.jpg`,
+                    type:
+                        personPhoto.type ||
+                        personPhoto.mimeType ||
+                        "image/jpeg",
+                });
             }
 
-            console.log("✅ Profile saved");
-            setShowPennyModal(true);
+            if (govtIdPhoto && !govtIdPhoto.uri?.startsWith("http")) {
+                console.log("📄 Adding govtIdPhoto");
+                await addFile("govtIdPhoto", {
+                    uri: govtIdPhoto.uri,
+                    name:
+                        govtIdPhoto.name ||
+                        govtIdPhoto.fileName ||
+                        `govtid_${Date.now()}.jpg`,
+                    type:
+                        govtIdPhoto.mimeType ||
+                        govtIdPhoto.type ||
+                        "image/jpeg",
+                });
+            }
+
+            if (outletPhoto && !outletPhoto.uri?.startsWith("http")) {
+                console.log("🏪 Adding outletPhoto");
+                await addFile("outletPhoto", {
+                    uri: outletPhoto.uri,
+                    name:
+                        outletPhoto.fileName ||
+                        outletPhoto.name ||
+                        `outlet_${Date.now()}.jpg`,
+                    type:
+                        outletPhoto.type ||
+                        outletPhoto.mimeType ||
+                        "image/jpeg",
+                });
+            }
+
+            if (registrationForm && !registrationForm.uri?.startsWith("http")) {
+                console.log("📋 Adding registrationForm");
+                await addFile("registrationFormFile", {
+                    uri: registrationForm.uri,
+                    name:
+                        registrationForm.name ||
+                        registrationForm.fileName ||
+                        `registration_${Date.now()}.jpg`,
+                    type:
+                        registrationForm.mimeType ||
+                        registrationForm.type ||
+                        "image/jpeg",
+                });
+            }
+
+            // Combine all parts and close boundary
+            const body = bodyParts.join("\r\n") + `\r\n--${boundary}--\r\n`;
+
+            console.log("🚀 Sending request...");
+
+            // Send with fetch
+            const response = await fetch(endpoint, {
+                method: method,
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": `multipart/form-data; boundary=${boundary}`,
+                },
+                body: body,
+            });
+
+            console.log("📥 Response status:", response.status);
+
+            const responseText = await response.text();
+            console.log("📄 Response:", responseText.substring(0, 200));
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("❌ JSON parse error:", e);
+                throw new Error("Invalid server response");
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    data.message || `Server error: ${response.status}`
+                );
+            }
+
+            console.log("✅ Profile saved successfully!");
+
+            // ✅ Update state with response
+            isUpdatingFromBackend.current = true;
+
+            const r = data.retailer || data;
+
+            if (r.name) setName(r.name);
+            if (r.email) setEmail(r.email);
+            if (r.altContactNo) setAltContactNo(r.altContactNo);
+            if (r.dob) setDob(formatDateForInput(r.dob));
+            if (r.gender) setGender(r.gender);
+
+            if (r.shopDetails) {
+                if (r.shopDetails.shopName) setShopName(r.shopDetails.shopName);
+                if (r.shopDetails.businessType)
+                    setBusinessType(r.shopDetails.businessType);
+                if (r.shopDetails.ownershipType)
+                    setOwnershipType(r.shopDetails.ownershipType);
+                if (r.shopDetails.GSTNo) setGstNo(r.shopDetails.GSTNo);
+                if (r.shopDetails.PANCard) setPanCard(r.shopDetails.PANCard);
+
+                if (r.shopDetails.shopAddress) {
+                    if (r.shopDetails.shopAddress.address)
+                        setAddress1(r.shopDetails.shopAddress.address);
+                    if (r.shopDetails.shopAddress.address2)
+                        setAddress2(r.shopDetails.shopAddress.address2);
+                    if (r.shopDetails.shopAddress.city)
+                        setCity(r.shopDetails.shopAddress.city);
+                    if (r.shopDetails.shopAddress.state)
+                        setState(r.shopDetails.shopAddress.state);
+                    if (r.shopDetails.shopAddress.pincode)
+                        setPincode(r.shopDetails.shopAddress.pincode);
+                }
+            }
+
+            if (r.bankDetails) {
+                const newBankDetails = {
+                    bankName: r.bankDetails.bankName || "",
+                    accountNumber: r.bankDetails.accountNumber || "",
+                    ifsc: r.bankDetails.IFSC || "",
+                    branchName: r.bankDetails.branchName || "",
+                };
+
+                if (
+                    bankOptions.find((b) => b.value === r.bankDetails.bankName)
+                ) {
+                    setBankName(r.bankDetails.bankName);
+                    setOtherBankName("");
+                } else {
+                    setBankName("Other");
+                    setOtherBankName(r.bankDetails.bankName || "");
+                }
+                setOriginalBankDetails(newBankDetails);
+            }
+
+            const tncValue = r.tnc || false;
+            const pennyValue = r.pennyCheck || false;
+            setTnc(tncValue);
+            setPennyCheck(pennyValue);
+
+            if (tncValue) setTncLocked(true);
+            if (pennyValue) setPennyCheckLocked(true);
+
+            setProfileExists(true);
+            if (r._id) setRetailerId(r._id);
+
+            setTimeout(() => {
+                isUpdatingFromBackend.current = false;
+            }, 100);
+
+            if (!pennyValue) {
+                setShowPennyModal(true);
+            } else {
+                setShowSuccessModal(true);
+            }
         } catch (error) {
-            console.error("Error:", error);
-            Alert.alert("Error", "Failed to save profile. Please try again.");
+            console.error("❌ Error:", error);
+            Alert.alert(
+                "Error",
+                error.message || "Failed to save profile. Please try again."
+            );
         } finally {
             setSubmitting(false);
         }
     };
 
-    const handlePennyConfirm = (received) => {
+    // Handle Penny Transfer confirmation
+    const handlePennyConfirm = async (received) => {
         setShowPennyModal(false);
-        if (received) setShowSuccessModal(true);
+
+        if (received) {
+            // Update penny check status in backend
+            try {
+                const token = await AsyncStorage.getItem("userToken");
+
+                const response = await fetch(`${API_BASE_URL}/retailer/me`, {
+                    method: "PATCH",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ pennyCheck: true }),
+                });
+
+                if (response.ok) {
+                    setPennyCheck(true);
+                    setPennyCheckLocked(true);
+                    setShowSuccessModal(true);
+                    console.log("✅ Penny check verified");
+                } else {
+                    Alert.alert("Error", "Failed to verify penny transfer");
+                }
+            } catch (error) {
+                console.error("Error updating penny check:", error);
+                Alert.alert("Error", "Failed to verify penny transfer");
+            }
+        }
     };
 
+    console.log("navigation: ", navigation.getState());
     const handleSuccessClose = () => {
         setShowSuccessModal(false);
-        navigation.replace("RetailerDashboard");
+        RootNavigation.resetToRetailerHome();
     };
 
     if (loading) {
@@ -767,7 +984,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <StatusBar style="dark" />
 
-            {/* Header */}
             <Header showBackButton={false} />
 
             <View style={styles.headingContainer}>
@@ -883,6 +1099,23 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                         )}
 
                         <View style={styles.inputGroup}>
+                            <Text style={styles.label}>
+                                Alternate Contact Number
+                            </Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="10-digit mobile number"
+                                placeholderTextColor="#999"
+                                value={altContactNo}
+                                onChangeText={(text) =>
+                                    setAltContactNo(text.replace(/\D/g, ""))
+                                }
+                                keyboardType="phone-pad"
+                                maxLength={10}
+                            />
+                        </View>
+
+                        <View style={styles.inputGroup}>
                             <Text style={styles.label}>Email Address</Text>
                             <TextInput
                                 style={styles.input}
@@ -894,6 +1127,16 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                 autoCapitalize="none"
                             />
                         </View>
+
+                        <DatePicker
+                            label="Date of Birth"
+                            value={dob}
+                            onChange={setDob}
+                            placeholder="Select date of birth"
+                            maximumDate={new Date()}
+                            mode="date"
+                            format="date"
+                        />
 
                         <View style={[styles.inputGroup, { zIndex: 5000 }]}>
                             <Text style={styles.label}>Gender</Text>
@@ -1174,7 +1417,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             />
                         </View>
 
-                        <View style={[styles.inputGroup, { zIndex: 1000 }]}>
+                        <View style={[styles.inputGroup, { zIndex: 5000 }]}>
                             <Text style={styles.label}>
                                 State <Text style={{ color: "red" }}> *</Text>
                             </Text>
@@ -1190,6 +1433,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                     styles.dropdownContainer
                                 }
                                 listMode="SCROLLVIEW"
+                                maxHeight={250}
                                 scrollViewProps={{ nestedScrollEnabled: true }}
                                 searchable={true}
                                 searchPlaceholder="Search state..."
@@ -1208,7 +1452,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                 placeholder="6-digit pincode"
                                 placeholderTextColor="#999"
                                 value={pincode}
-                                onChangeText={(value) => setPincode(value)}
+                                onChangeText={validatePincode}
                                 keyboardType="number-pad"
                                 maxLength={6}
                             />
@@ -1373,7 +1617,24 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                 onChangeText={setBranchName}
                             />
                         </View>
+
+                        {/* Penny Check Status Display */}
+                        {pennyCheckLocked && (
+                            <View style={styles.verificationBadge}>
+                                <Text style={styles.verificationText}>
+                                    ✓ Bank account verified with penny transfer
+                                </Text>
+                            </View>
+                        )}
                     </View>
+
+                    {/* Terms & Conditions */}
+                    <TermsAndConditions
+                        accepted={tnc}
+                        onAcceptChange={setTnc}
+                        locked={tncLocked}
+                        required={true}
+                    />
 
                     {/* SUBMIT */}
                     <TouchableOpacity
@@ -1428,29 +1689,6 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingBottom: Platform.OS === "ios" ? 100 : 90,
-    },
-    header: {
-        alignItems: "center",
-        paddingVertical: 20,
-        backgroundColor: "#fff",
-    },
-    logoPlaceholder: {
-        width: 80,
-        height: 80,
-        backgroundColor: "#f0f0f0",
-        borderRadius: 40,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    logoText: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: "#333",
-    },
-    logoSubtext: {
-        fontSize: 8,
-        color: "#666",
-        marginTop: 2,
     },
     headingContainer: {
         backgroundColor: "#fff",
@@ -1608,6 +1846,20 @@ const styles = StyleSheet.create({
         height: 50,
         borderRadius: 8,
         marginRight: 10,
+    },
+    verificationBadge: {
+        backgroundColor: "#E8F5E9",
+        padding: 15,
+        borderRadius: 10,
+        borderLeftWidth: 4,
+        borderLeftColor: "#28a745",
+        marginTop: 10,
+    },
+    verificationText: {
+        color: "#28a745",
+        fontSize: 14,
+        fontWeight: "600",
+        textAlign: "center",
     },
     submitButton: {
         backgroundColor: "#E53935",

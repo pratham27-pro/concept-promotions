@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
     View,
     Text,
@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import ImageView from "react-native-image-viewing";
 
 const FileUpload = ({
     label,
@@ -25,7 +26,11 @@ const FileUpload = ({
     placeholder = "Click to upload file",
     style,
     error,
+    enablePreview = true, // Enable/disable fullscreen preview
 }) => {
+    const [previewVisible, setPreviewVisible] = useState(false);
+    const [previewIndex, setPreviewIndex] = useState(0);
+
     // ✅ Show action sheet to let user choose between Image/Document
     const showPickerOptions = () => {
         if (disabled) return;
@@ -155,6 +160,20 @@ const FileUpload = ({
         );
     };
 
+    // ✅ Open image preview in fullscreen
+    const openImagePreview = (index = 0) => {
+        if (!enablePreview) return;
+        setPreviewIndex(index);
+        setPreviewVisible(true);
+    };
+
+    // ✅ Get all images for preview modal
+    const getImageList = () => {
+        if (!file) return [];
+        const files = Array.isArray(file) ? file : [file];
+        return files.filter(isImage).map((f) => ({ uri: f.uri }));
+    };
+
     const renderFilePreview = () => {
         if (!file) return null;
 
@@ -163,10 +182,24 @@ const FileUpload = ({
             return (
                 <View style={styles.previewContainer}>
                     {isImage(file) ? (
-                        <Image
-                            source={{ uri: file.uri }}
-                            style={styles.previewImage}
-                        />
+                        <TouchableOpacity
+                            onPress={() => enablePreview && openImagePreview(0)}
+                            activeOpacity={0.8}
+                        >
+                            <Image
+                                source={{ uri: file.uri }}
+                                style={styles.previewImage}
+                            />
+                            {enablePreview && (
+                                <View style={styles.zoomIconContainer}>
+                                    <Ionicons
+                                        name="expand-outline"
+                                        size={20}
+                                        color="#fff"
+                                    />
+                                </View>
+                            )}
+                        </TouchableOpacity>
                     ) : (
                         <View style={styles.documentPreview}>
                             <Ionicons
@@ -196,39 +229,68 @@ const FileUpload = ({
         // Handle multiple files
         return (
             <View style={styles.multipleFilesContainer}>
-                {file.map((item, index) => (
-                    <View key={index} style={styles.fileItem}>
-                        {isImage(item) ? (
-                            <Image
-                                source={{ uri: item.uri }}
-                                style={styles.thumbnailImage}
-                            />
-                        ) : (
-                            <View style={styles.documentThumbnail}>
+                {file.map((item, index) => {
+                    const imageIndex = file
+                        .slice(0, index)
+                        .filter(isImage).length;
+
+                    return (
+                        <View key={index} style={styles.fileItem}>
+                            {isImage(item) ? (
+                                <TouchableOpacity
+                                    onPress={() =>
+                                        enablePreview &&
+                                        openImagePreview(imageIndex)
+                                    }
+                                    activeOpacity={0.8}
+                                >
+                                    <Image
+                                        source={{ uri: item.uri }}
+                                        style={styles.thumbnailImage}
+                                    />
+                                    {enablePreview && (
+                                        <View style={styles.zoomIconSmall}>
+                                            <Ionicons
+                                                name="expand-outline"
+                                                size={14}
+                                                color="#fff"
+                                            />
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            ) : (
+                                <View style={styles.documentThumbnail}>
+                                    <Ionicons
+                                        name="document"
+                                        size={30}
+                                        color="#007AFF"
+                                    />
+                                    <Text
+                                        style={styles.fileNameSmall}
+                                        numberOfLines={1}
+                                    >
+                                        {item.name}
+                                    </Text>
+                                </View>
+                            )}
+                            <TouchableOpacity
+                                style={styles.removeIconSmall}
+                                onPress={() => {
+                                    const newFiles = file.filter(
+                                        (_, i) => i !== index
+                                    );
+                                    onFileRemove && onFileRemove(newFiles);
+                                }}
+                            >
                                 <Ionicons
-                                    name="document"
-                                    size={30}
-                                    color="#007AFF"
+                                    name="close-circle"
+                                    size={20}
+                                    color="#dc3545"
                                 />
-                            </View>
-                        )}
-                        <TouchableOpacity
-                            style={styles.removeIconSmall}
-                            onPress={() => {
-                                const newFiles = file.filter(
-                                    (_, i) => i !== index
-                                );
-                                onFileRemove && onFileRemove(newFiles);
-                            }}
-                        >
-                            <Ionicons
-                                name="close-circle"
-                                size={20}
-                                color="#dc3545"
-                            />
-                        </TouchableOpacity>
-                    </View>
-                ))}
+                            </TouchableOpacity>
+                        </View>
+                    );
+                })}
             </View>
         );
     };
@@ -286,6 +348,17 @@ const FileUpload = ({
             )}
 
             {error && <Text style={styles.errorText}>{error}</Text>}
+
+            {/* ✅ Fullscreen Image Preview Modal */}
+            <ImageView
+                images={getImageList()}
+                imageIndex={previewIndex}
+                visible={previewVisible}
+                onRequestClose={() => setPreviewVisible(false)}
+                swipeToCloseEnabled={true}
+                doubleTapToZoomEnabled={true}
+                presentationStyle="overFullScreen"
+            />
         </View>
     );
 };
@@ -352,6 +425,13 @@ const styles = StyleSheet.create({
         color: "#333",
         maxWidth: 200,
     },
+    fileNameSmall: {
+        marginTop: 4,
+        fontSize: 10,
+        color: "#333",
+        textAlign: "center",
+        paddingHorizontal: 4,
+    },
     removeButton: {
         marginTop: 10,
     },
@@ -402,6 +482,22 @@ const styles = StyleSheet.create({
         color: "#dc3545",
         fontSize: 12,
         marginTop: 5,
+    },
+    zoomIconContainer: {
+        position: "absolute",
+        bottom: 15,
+        right: 5,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        borderRadius: 15,
+        padding: 5,
+    },
+    zoomIconSmall: {
+        position: "absolute",
+        bottom: 5,
+        right: 5,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        borderRadius: 10,
+        padding: 3,
     },
 });
 
