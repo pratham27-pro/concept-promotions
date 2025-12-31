@@ -1,33 +1,37 @@
-import React, { useState, useEffect, useCallback } from "react";
-import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    TextInput,
-    Alert,
-    Platform,
-    ActivityIndicator,
-} from "react-native";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system";
+import { StatusBar } from "expo-status-bar";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // Import reusable components
-import Header from "../../components/common/Header";
-import SearchableDropdown from "../../components/common/SearchableDropdown";
 import FileUpload from "../../components/common/FileUpload";
-import PhotoPicker from "../../components/common/PhotoPicker";
 import GradientButton from "../../components/common/GradientButton";
+import Header from "../../components/common/Header";
+import PhotoPicker from "../../components/common/PhotoPicker";
+import SearchableDropdown from "../../components/common/SearchableDropdown";
 
 // Import modals
 import PennyTransferModal from "../../components/PennyTransferModal";
 import SuccessModal from "../../components/SuccessModal";
+import TermsAndConditions from "../../components/data/TermsAndConditions";
 
 // Import AuthContext
+import DatePicker from "../../components/common/DatePicker";
+import { bankOptions, stateOptions } from "../../components/data/common";
 import { useAuth } from "../../context/AuthContext";
 
 const API_BASE_URL = "https://supreme-419p.onrender.com/api";
@@ -70,6 +74,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
     // Correspondence Address
     const [co_address1, setCoAddress1] = useState("");
     const [co_address2, setCoAddress2] = useState("");
+    const [co_stateOpen, setCoStateOpen] = useState(false);
     const [co_state, setCoState] = useState("");
     const [co_city, setCoCity] = useState("");
     const [co_pincode, setCoPincode] = useState("");
@@ -78,6 +83,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
     const [sameAsCorrespondence, setSameAsCorrespondence] = useState(false);
     const [p_address1, setPAddress1] = useState("");
     const [p_address2, setPAddress2] = useState("");
+    const [p_stateOpen, setPStateOpen] = useState(false);
     const [p_state, setPState] = useState("");
     const [p_city, setPCity] = useState("");
     const [p_pincode, setPPincode] = useState("");
@@ -103,12 +109,23 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
     const [esiDispensary, setEsiDispensary] = useState("");
     const [contractLength, setContractLength] = useState("");
 
-    // Bank Details
+    // Bank Details with Dropdown
+    const [bankNameOpen, setBankNameOpen] = useState(false);
+    const [bankName, setBankName] = useState(null);
+    const [otherBankName, setOtherBankName] = useState("");
     const [bankAccount, setBankAccount] = useState("");
     const [confirmBankAccount, setConfirmBankAccount] = useState("");
     const [ifsc, setIfsc] = useState("");
     const [branchName, setBranchName] = useState("");
-    const [bankName, setBankName] = useState("");
+
+    // Track original bank details to detect changes
+    const [originalBankDetails, setOriginalBankDetails] = useState({
+        bankName: "",
+        accountNumber: "",
+        ifsc: "",
+        branchName: "",
+    });
+    const isUpdatingFromBackend = useRef(false);
 
     // Work Experience (Only for Permanent)
     const [experiences, setExperiences] = useState([
@@ -133,6 +150,12 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
     const [employmentForm, setEmploymentForm] = useState(null);
     const [cv, setCv] = useState(null);
 
+    // Penny Check and T&C
+    const [pennyCheck, setPennyCheck] = useState(false);
+    const [pennyCheckLocked, setPennyCheckLocked] = useState(false);
+    const [tnc, setTnc] = useState(false);
+    const [tncLocked, setTncLocked] = useState(false);
+
     // Modals
     const [showPennyModal, setShowPennyModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -142,22 +165,144 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
 
+    const [loadingImages, setLoadingImages] = useState(false);
+
     // Fetch employee profile on mount
     useFocusEffect(
         useCallback(() => {
-            fetchEmployeeProfile();
+            const loadProfile = async () => {
+                await fetchEmployeeProfile();
+                // After profile loads, fetch documents
+                await fetchEmployeeDocuments();
+            };
+            loadProfile();
         }, [])
     );
+
+    // useEffect(() => {
+    //     return () => {
+    //         Object.values(imageUrls).forEach((url) => {
+    //             if (url && url.startsWith("blob:")) {
+    //                 URL.revokeObjectURL(url);
+    //             }
+    //         });
+    //     };
+    // }, [imageUrls]);
+
+    // ✅ FINAL PRODUCTION VERSION - Fetch employee documents
+    // ✅ FINAL WORKING VERSION - Fetch employee documents
+    const fetchEmployeeDocuments = async () => {
+        try {
+            setLoadingImages(true);
+            const token = await AsyncStorage.getItem("userToken");
+
+            if (!token) {
+                console.error("❌ No token found");
+                return;
+            }
+
+            console.log("🔍 Attempting to fetch employee documents...");
+
+            const documentMap = {
+                personPhoto: { setter: setPersonPhoto, name: "Person Photo" },
+                aadhaarFront: {
+                    setter: setAadhaarFile1,
+                    name: "Aadhaar Front",
+                },
+                aadhaarBack: { setter: setAadhaarFile2, name: "Aadhaar Back" },
+                panCard: { setter: setPanFile, name: "PAN Card" },
+                bankProof: { setter: setBankProofFile, name: "Bank Proof" },
+                familyPhoto: { setter: setFamilyPhoto, name: "Family Photo" },
+                pfForm: { setter: setPfForm, name: "PF Form" },
+                esiForm: { setter: setEsiForm, name: "ESI Form" },
+                employmentForm: {
+                    setter: setEmploymentForm,
+                    name: "Employment Form",
+                },
+                cv: { setter: setCv, name: "CV" },
+            };
+
+            // Helper function to fetch using XMLHttpRequest
+            const fetchDocument = (url, token) => {
+                return new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.responseType = "blob";
+
+                    xhr.onload = () => {
+                        console.log(`📥 Response for ${url}: ${xhr.status}`);
+
+                        if (xhr.status === 200) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                resolve({
+                                    success: true,
+                                    base64: reader.result,
+                                    status: xhr.status,
+                                });
+                            };
+                            reader.onerror = () =>
+                                reject(new Error("FileReader error"));
+                            reader.readAsDataURL(xhr.response);
+                        } else if (xhr.status === 404) {
+                            resolve({ success: false, status: 404 });
+                        } else {
+                            console.error(
+                                `❌ Unexpected status ${xhr.status} for ${url}`
+                            );
+                            resolve({ success: false, status: xhr.status });
+                        }
+                    };
+
+                    xhr.onerror = () => {
+                        console.error(`❌ Network error for ${url}`);
+                        reject(new Error("Network error"));
+                    };
+
+                    xhr.open("GET", url);
+                    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+                    xhr.send();
+                });
+            };
+
+            for (const [type, config] of Object.entries(documentMap)) {
+                try {
+                    const url = `${API_BASE_URL}/employee/employee/document/${type}`;
+                    console.log(`🔍 Fetching: ${url}`);
+
+                    const result = await fetchDocument(url, token);
+
+                    if (result.success) {
+                        config.setter({
+                            uri: result.base64,
+                            name: config.name,
+                            fromBackend: true,
+                        });
+                        console.log(`✅ ${type} loaded successfully`);
+                    } else if (result.status === 404) {
+                        console.log(`ℹ️ ${type} not found (not uploaded yet)`);
+                    } else {
+                        console.log(
+                            `⚠️ ${type} returned status ${result.status}`
+                        );
+                    }
+                } catch (err) {
+                    console.error(`❌ Error fetching ${type}:`, err);
+                }
+            }
+
+            console.log("✅ Document fetch complete");
+        } catch (error) {
+            console.error("❌ Error in fetchEmployeeDocuments:", error);
+        } finally {
+            setLoadingImages(false);
+        }
+    };
 
     const fetchEmployeeProfile = async () => {
         try {
             setLoading(true);
 
-            // ✅ Use profile from context if available
             if (userProfile) {
-                console.log("📋 Using profile from context:", userProfile);
-
-                // ✅ Now userProfile should have the data at root level
                 if (userProfile.name) setName(userProfile.name);
                 if (userProfile.email) setEmail(userProfile.email);
                 if (userProfile.phone) setPhone(userProfile.phone);
@@ -165,10 +310,12 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 setEmployeeType(userProfile.employeeType || "");
                 prefillForm(userProfile);
                 setLoading(false);
+
+                // ✅ Fetch documents after profile loads from context
+                await fetchEmployeeDocuments();
                 return;
             }
 
-            // Otherwise fetch from API
             const token = await AsyncStorage.getItem("userToken");
             if (!token) {
                 Alert.alert("Error", "Please login again.");
@@ -186,15 +333,12 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
             });
 
             const responseData = await response.json();
-            console.log("🔍 Profile API response:", responseData);
 
             if (response.ok && responseData) {
-                // ✅ Extract employee from nested response
                 const data = responseData.employee || responseData;
 
                 setProfileData(data);
 
-                // Set all fields including basic ones
                 if (data.name) setName(data.name);
                 if (data.email) setEmail(data.email);
                 if (data.phone) setPhone(data.phone);
@@ -203,6 +347,10 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 prefillForm(data);
 
                 console.log("✅ Employee profile loaded");
+                setLoading(false);
+
+                // ✅ Fetch documents after profile loads from API
+                await fetchEmployeeDocuments();
             } else {
                 throw new Error(
                     responseData.message || "Failed to fetch profile"
@@ -211,13 +359,13 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
         } catch (error) {
             console.error("Error fetching profile:", error);
             Alert.alert("Error", "Failed to load profile. Please try again.");
-        } finally {
             setLoading(false);
         }
     };
 
     const prefillForm = (data) => {
-        // Pre-fill existing data from admin
+        isUpdatingFromBackend.current = true;
+
         if (data.name) setName(data.name);
         if (data.email) setEmail(data.email);
         if (data.phone) setPhone(data.phone);
@@ -227,6 +375,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
         if (data.highestQualification)
             setHighestQualification(data.highestQualification);
         if (data.maritalStatus) setMaritalStatus(data.maritalStatus);
+
+        // T&C and Penny Check
+        const tncValue = data.tnc || false;
+        const pennyValue = data.pennyCheck || false;
+        setTnc(tncValue);
+        setPennyCheck(pennyValue);
+        if (tncValue) setTncLocked(true);
+        if (pennyValue) setPennyCheckLocked(true);
 
         // Addresses
         if (data.correspondenceAddress) {
@@ -274,18 +430,105 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
 
         // Bank
         if (data.bankDetails) {
-            setBankName(data.bankDetails.bankName || "");
-            setBankAccount(data.bankDetails.accountNumber || "");
-            setConfirmBankAccount(data.bankDetails.accountNumber || "");
-            setIfsc(data.bankDetails.IFSC || "");
-            setBranchName(data.bankDetails.branchName || "");
+            const bankDetails = {
+                bankName: data.bankDetails.bankName || "",
+                accountNumber: data.bankDetails.accountNumber || "",
+                ifsc: data.bankDetails.IFSC || "",
+                branchName: data.bankDetails.branchName || "",
+            };
+
+            if (
+                bankOptions.find((b) => b.value === data.bankDetails.bankName)
+            ) {
+                setBankName(data.bankDetails.bankName);
+            } else {
+                setBankName("Other");
+                setOtherBankName(data.bankDetails.bankName);
+            }
+
+            if (data.bankDetails.accountNumber) {
+                setBankAccount(data.bankDetails.accountNumber);
+                setConfirmBankAccount(data.bankDetails.accountNumber);
+            }
+            if (data.bankDetails.IFSC) setIfsc(data.bankDetails.IFSC);
+            if (data.bankDetails.branchName)
+                setBranchName(data.bankDetails.branchName);
+
+            setOriginalBankDetails(bankDetails);
         }
 
-        // Photos (if already uploaded)
-        if (data.personPhoto) {
-            setPersonPhoto({ uri: data.personPhoto });
-        }
+        // ✅ Files - Convert backend URLs to proper format
+        // if (data.personPhoto) {
+        //     setPersonPhoto(data.personPhoto); // Just the string URL
+        // }
+
+        // if (data.aadhaarFront) {
+        //     setAadhaarFile1({ uri: data.aadhaarFront, name: "Aadhaar Front" });
+        // }
+
+        // if (data.aadhaarBack) {
+        //     setAadhaarFile2({ uri: data.aadhaarBack, name: "Aadhaar Back" });
+        // }
+
+        // if (data.panCard) {
+        //     setPanFile({ uri: data.panCard, name: "PAN Card" });
+        // }
+
+        // if (data.bankProof) {
+        //     setBankProofFile({ uri: data.bankProof, name: "Bank Proof" });
+        // }
+
+        // if (data.familyPhoto) {
+        //     setFamilyPhoto({ uri: data.familyPhoto, name: "Family Photo" });
+        // }
+
+        // if (data.pfForm) {
+        //     setPfForm({ uri: data.pfForm, name: "PF Form" });
+        // }
+
+        // if (data.esiForm) {
+        //     setEsiForm({ uri: data.esiForm, name: "ESI Form" });
+        // }
+
+        // if (data.employmentForm) {
+        //     setEmploymentForm({
+        //         uri: data.employmentForm,
+        //         name: "Employment Form",
+        //     });
+        // }
+
+        // if (data.cv) {
+        //     setCv({ uri: data.cv, name: "CV" });
+        // }
+
+        setTimeout(() => {
+            isUpdatingFromBackend.current = false;
+        }, 100);
     };
+
+    // Detect bank detail changes and unlock penny check
+    useEffect(() => {
+        if (isUpdatingFromBackend.current) {
+            return;
+        }
+        const bankChanged =
+            bankName !== originalBankDetails.bankName ||
+            bankAccount !== originalBankDetails.accountNumber ||
+            ifsc !== originalBankDetails.ifsc ||
+            branchName !== originalBankDetails.branchName;
+
+        if (bankChanged && pennyCheckLocked) {
+            setPennyCheck(false);
+            setPennyCheckLocked(false);
+        }
+    }, [
+        bankName,
+        bankAccount,
+        ifsc,
+        branchName,
+        originalBankDetails,
+        pennyCheckLocked,
+    ]);
 
     // Handle checkbox for same address
     const handleCheckboxChange = () => {
@@ -334,7 +577,6 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
 
     // Validate form
     const validateForm = () => {
-        // Basic validation
         if (!gender) {
             Alert.alert("Error", "Please select your gender");
             return false;
@@ -362,6 +604,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
         }
 
         // Bank validation
+        if (!bankName) {
+            Alert.alert("Error", "Please select bank");
+            return false;
+        }
+        if (bankName === "Other" && !otherBankName.trim()) {
+            Alert.alert("Error", "Please enter bank name");
+            return false;
+        }
         if (!bankAccount) {
             Alert.alert("Error", "Please enter bank account number");
             return false;
@@ -374,8 +624,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
             Alert.alert("Error", "Please enter valid 11-character IFSC code");
             return false;
         }
-        if (!bankName || !branchName) {
-            Alert.alert("Error", "Please fill all bank details");
+        if (!branchName) {
+            Alert.alert("Error", "Please enter branch name");
+            return false;
+        }
+
+        // T&C validation
+        if (!tnc) {
+            Alert.alert("Error", "Please accept Terms & Conditions");
             return false;
         }
 
@@ -460,164 +716,261 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 return;
             }
 
-            // Debug: Log all file states
-            console.log("📸 personPhoto:", personPhoto);
-            console.log("📄 aadhaarFile1:", aadhaarFile1);
-            console.log("📄 aadhaarFile2:", aadhaarFile2);
-            console.log("📄 panFile:", panFile);
-            console.log("📄 bankProofFile:", bankProofFile);
-            console.log("📄 familyPhoto:", familyPhoto);
-            console.log("📄 pfForm:", pfForm);
-            console.log("📄 esiForm:", esiForm);
-            console.log("📄 employmentForm:", employmentForm);
-            console.log("📄 cv:", cv);
+            const endpoint = `${API_BASE_URL}/employee/employee/profile`;
 
-            const formData = new FormData();
+            console.log(`📤 PUT ${endpoint}`);
 
-            // Basic fields
-            formData.append("gender", gender);
-            formData.append("dob", dob);
-            if (alternatePhone)
-                formData.append("alternatePhone", alternatePhone);
-            formData.append("aadhaarNumber", aadhaarNumber);
+            // ✅ Build multipart form data manually
+            const boundary = `----WebKitFormBoundary${Math.random()
+                .toString(36)
+                .substring(2)}`;
+            let bodyParts = [];
 
-            // ✅ Correspondence Address
-            formData.append("correspondenceAddress.addressLine1", co_address1);
-            if (co_address2)
-                formData.append(
-                    "correspondenceAddress.addressLine2",
-                    co_address2
+            // Helper to add text field
+            const addField = (name, value) => {
+                bodyParts.push(
+                    `--${boundary}\r\n` +
+                        `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
+                        `${value}`
                 );
-            formData.append("correspondenceAddress.state", co_state);
-            formData.append("correspondenceAddress.city", co_city);
-            formData.append("correspondenceAddress.pincode", co_pincode);
+            };
 
-            // ✅ Permanent Address - FIXED field names
-            formData.append("permanentAddress.addressLine1", p_address1);
+            // ✅ UPDATED: Helper to add file field with proper skip logic
+            const addFile = async (fieldName, file) => {
+                if (!file) {
+                    console.log(`⚠️ Skipping ${fieldName} - no file`);
+                    return false;
+                }
+
+                // ✅ Skip if it's from backend (already uploaded)
+                if (file.fromBackend) {
+                    console.log(
+                        `⚠️ Skipping ${fieldName} - already uploaded (from backend)`
+                    );
+                    return false;
+                }
+
+                // ✅ Skip if it's a string URL
+                if (typeof file === "string") {
+                    console.log(
+                        `⚠️ Skipping ${fieldName} - already uploaded (string URL)`
+                    );
+                    return false;
+                }
+
+                // ✅ Skip if it's an HTTP URL
+                if (file.uri && file.uri.startsWith("http")) {
+                    console.log(
+                        `⚠️ Skipping ${fieldName} - already uploaded (HTTP URL)`
+                    );
+                    return false;
+                }
+
+                // ✅ It's a new local file, upload it
+                try {
+                    const fileContent = await FileSystem.readAsStringAsync(
+                        file.uri,
+                        {
+                            encoding: "base64",
+                        }
+                    );
+
+                    const fileName =
+                        file.name ||
+                        file.fileName ||
+                        `${fieldName}.${
+                            file.mimeType?.includes("image") ? "jpg" : "pdf"
+                        }`;
+                    const fileType =
+                        file.mimeType || file.type || "application/pdf";
+
+                    bodyParts.push(
+                        `--${boundary}\r\n` +
+                            `Content-Disposition: form-data; name="${fieldName}"; filename="${fileName}"\r\n` +
+                            `Content-Type: ${fileType}\r\n` +
+                            `Content-Transfer-Encoding: base64\r\n\r\n` +
+                            fileContent
+                    );
+
+                    console.log(`✅ Added ${fieldName}`);
+                    return true;
+                } catch (error) {
+                    console.error(`❌ Error reading file ${fieldName}:`, error);
+                    Alert.alert(
+                        "Error",
+                        `Failed to read ${fieldName}. Please try again.`
+                    );
+                    return false;
+                }
+            };
+
+            // Add all text fields
+            addField("gender", gender);
+            addField("dob", dob);
+            if (alternatePhone) addField("alternatePhone", alternatePhone);
+            addField("aadhaarNumber", aadhaarNumber);
+
+            // Correspondence Address
+            addField("correspondenceAddress.addressLine1", co_address1);
+            if (co_address2)
+                addField("correspondenceAddress.addressLine2", co_address2);
+            addField("correspondenceAddress.state", co_state);
+            addField("correspondenceAddress.city", co_city);
+            addField("correspondenceAddress.pincode", co_pincode);
+
+            // Permanent Address
+            addField("permanentAddress.addressLine1", p_address1);
             if (p_address2)
-                formData.append("permanentAddress.addressLine2", p_address2);
-            formData.append("permanentAddress.state", p_state);
-            formData.append("permanentAddress.city", p_city);
-            formData.append("permanentAddress.pincode", p_pincode);
+                addField("permanentAddress.addressLine2", p_address2);
+            addField("permanentAddress.state", p_state);
+            addField("permanentAddress.city", p_city);
+            addField("permanentAddress.pincode", p_pincode);
 
             // Bank details
-            formData.append("bankDetails.bankName", bankName);
-            formData.append("bankDetails.accountNumber", bankAccount);
-            formData.append("bankDetails.ifsc", ifsc);
-            formData.append("bankDetails.branchName", branchName);
+            const finalBankName =
+                bankName === "Other" ? otherBankName : bankName;
+            addField("bankDetails.bankName", finalBankName);
+            addField("bankDetails.accountNumber", bankAccount);
+            addField("bankDetails.ifsc", ifsc);
+            addField("bankDetails.branchName", branchName);
+
+            // T&C and Penny Check
+            addField("tnc", tnc.toString());
+            addField("pennyCheck", pennyCheck.toString());
 
             // Permanent employee specific fields
             if (employeeType === "Permanent") {
-                formData.append("highestQualification", highestQualification);
-                formData.append("maritalStatus", maritalStatus);
-                formData.append("panNumber", panNumber);
-                formData.append("fathersName", fathersName);
-                if (fatherDob) formData.append("fatherDob", fatherDob);
-                formData.append("motherName", motherName);
-                if (motherDob) formData.append("motherDob", motherDob);
-                if (spouseName) formData.append("spouseName", spouseName);
-                if (spouseDob) formData.append("spouseDob", spouseDob);
-                if (child1Name) formData.append("child1Name", child1Name);
-                if (child1Dob) formData.append("child1Dob", child1Dob);
-                if (child2Name) formData.append("child2Name", child2Name);
-                if (child2Dob) formData.append("child2Dob", child2Dob);
-                formData.append("uanNumber", uanNumber);
-                formData.append("pfNumber", pfNumber);
-                formData.append("esiNumber", esiNumber);
-                if (esiDispensary)
-                    formData.append("esiDispensary", esiDispensary);
-                formData.append("experiences", JSON.stringify(experiences));
+                addField("highestQualification", highestQualification);
+                addField("maritalStatus", maritalStatus);
+                addField("panNumber", panNumber);
+                addField("fathersName", fathersName);
+                if (fatherDob) addField("fatherDob", fatherDob);
+                addField("motherName", motherName);
+                if (motherDob) addField("motherDob", motherDob);
+                if (spouseName) addField("spouseName", spouseName);
+                if (spouseDob) addField("spouseDob", spouseDob);
+                if (child1Name) addField("child1Name", child1Name);
+                if (child1Dob) addField("child1Dob", child1Dob);
+                if (child2Name) addField("child2Name", child2Name);
+                if (child2Dob) addField("child2Dob", child2Dob);
+                addField("uanNumber", uanNumber);
+                addField("pfNumber", pfNumber);
+                addField("esiNumber", esiNumber);
+                if (esiDispensary) addField("esiDispensary", esiDispensary);
+                addField("experiences", JSON.stringify(experiences));
             }
 
             // Contractual specific
             if (employeeType === "Contractual" && contractLength) {
-                formData.append("contractLength", contractLength);
+                addField("contractLength", contractLength);
             }
 
             // Password change
             if (newPassword) {
-                formData.append("newPassword", newPassword);
+                addField("newPassword", newPassword);
             }
 
-            // ✅ Helper function to append files
-            const appendFile = (
-                fieldName,
-                file,
-                defaultType = "application/pdf"
-            ) => {
-                if (!file || !file.uri) {
-                    console.log(`⚠️ Skipping ${fieldName} - no file or uri`);
-                    return;
-                }
+            // Add files
+            console.log("📸 Adding person photo");
+            await addFile("personPhoto", personPhoto);
 
-                // Don't upload if it's an existing URL
-                if (file.uri.startsWith("http")) {
-                    console.log(`⚠️ Skipping ${fieldName} - already uploaded`);
-                    return;
-                }
+            console.log("📄 Adding aadhaar files");
+            await addFile("aadhaarFront", aadhaarFile1);
+            await addFile("aadhaarBack", aadhaarFile2);
 
-                console.log(`✅ Appending ${fieldName}:`, file);
-
-                formData.append(fieldName, {
-                    uri: file.uri,
-                    name:
-                        file.name ||
-                        `${fieldName}.${
-                            defaultType === "image/jpeg" ? "jpg" : "pdf"
-                        }`,
-                    type: file.mimeType || file.type || defaultType,
-                });
-            };
-
-            // ✅ Append all files
-            appendFile("personPhoto", personPhoto, "image/jpeg");
-            appendFile("aadhaarFront", aadhaarFile1, "application/pdf");
-            appendFile("aadhaarBack", aadhaarFile2, "application/pdf");
+            console.log("📄 Adding bank proof");
+            await addFile("bankProof", bankProofFile);
 
             if (employeeType === "Permanent") {
-                appendFile("panCard", panFile, "application/pdf");
-                appendFile("familyPhoto", familyPhoto, "image/jpeg");
-                appendFile("pfForm", pfForm, "application/pdf");
-                appendFile("esiForm", esiForm, "application/pdf");
-                appendFile("employmentForm", employmentForm, "application/pdf");
-                appendFile("cv", cv, "application/pdf");
+                console.log("📄 Adding permanent employee files");
+                await addFile("panCard", panFile);
+                if (familyPhoto) await addFile("familyPhoto", familyPhoto);
+                await addFile("pfForm", pfForm);
+                await addFile("esiForm", esiForm);
+                if (employmentForm)
+                    await addFile("employmentForm", employmentForm);
+                if (cv) await addFile("cv", cv);
             }
 
-            appendFile("bankProof", bankProofFile, "application/pdf");
+            // Combine all parts and close boundary
+            const body = bodyParts.join("\r\n") + `\r\n--${boundary}--\r\n`;
 
-            console.log("📤 Submitting profile update...");
+            console.log("🚀 Sending request...");
 
-            const response = await fetch(
-                `${API_BASE_URL}/employee/employee/profile`,
-                {
-                    method: "PUT",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        // Don't set Content-Type - let FormData set it
-                    },
-                    body: formData,
-                }
-            );
+            // Send with fetch
+            const response = await fetch(endpoint, {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": `multipart/form-data; boundary=${boundary}`,
+                },
+                body: body,
+            });
 
             console.log("📥 Response status:", response.status);
 
             const responseText = await response.text();
-            console.log("📥 Raw response:", responseText);
+            // console.log("📄 Response:", responseText.substring(0, 200));
 
             let data;
             try {
                 data = JSON.parse(responseText);
             } catch (e) {
-                console.error("❌ Failed to parse JSON:", e);
-                throw new Error("Server did not return valid JSON");
+                console.error("❌ JSON parse error:", e);
+                throw new Error("Invalid server response");
             }
 
             if (!response.ok) {
-                throw new Error(data.message || "Failed to update profile");
+                throw new Error(
+                    data.message || `Server error: ${response.status}`
+                );
             }
 
-            console.log("✅ Profile updated successfully:", data);
-            setShowPennyModal(true);
+            console.log("✅ Profile saved successfully!");
+
+            // Update state with response
+            isUpdatingFromBackend.current = true;
+
+            const r = data.employee || data;
+
+            if (r.bankDetails) {
+                const newBankDetails = {
+                    bankName: r.bankDetails.bankName || "",
+                    accountNumber: r.bankDetails.accountNumber || "",
+                    ifsc: r.bankDetails.IFSC || "",
+                    branchName: r.bankDetails.branchName || "",
+                };
+
+                if (
+                    bankOptions.find((b) => b.value === r.bankDetails.bankName)
+                ) {
+                    setBankName(r.bankDetails.bankName);
+                    setOtherBankName("");
+                } else {
+                    setBankName("Other");
+                    setOtherBankName(r.bankDetails.bankName || "");
+                }
+                setOriginalBankDetails(newBankDetails);
+            }
+
+            const tncValue = r.tnc || false;
+            const pennyValue = r.pennyCheck || false;
+            setTnc(tncValue);
+            setPennyCheck(pennyValue);
+
+            if (tncValue) setTncLocked(true);
+            if (pennyValue) setPennyCheckLocked(true);
+
+            setTimeout(() => {
+                isUpdatingFromBackend.current = false;
+            }, 100);
+
+            // Show Penny Modal if not already verified
+            if (!pennyValue) {
+                setShowPennyModal(true);
+            } else {
+                setShowSuccessModal(true);
+            }
         } catch (error) {
             console.error("❌ Error:", error);
             Alert.alert(
@@ -629,18 +982,44 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
         }
     };
 
-    const handlePennyConfirm = (received) => {
+    const handlePennyConfirm = async (received) => {
         setShowPennyModal(false);
-        if (received) setShowSuccessModal(true);
+
+        if (received) {
+            // Update penny check status in backend
+            try {
+                const token = await AsyncStorage.getItem("userToken");
+
+                const response = await fetch(
+                    `${API_BASE_URL}/employee/employee/profile`,
+                    {
+                        method: "PUT",
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ pennyCheck: true }),
+                    }
+                );
+
+                if (response.ok) {
+                    setPennyCheck(true);
+                    setPennyCheckLocked(true);
+                    setShowSuccessModal(true);
+                    console.log("✅ Penny check verified");
+                } else {
+                    Alert.alert("Error", "Failed to verify penny transfer");
+                }
+            } catch (error) {
+                console.error("Error updating penny check:", error);
+                Alert.alert("Error", "Failed to verify penny transfer");
+            }
+        }
     };
 
     const handleSuccessClose = async () => {
         setShowSuccessModal(false);
-
-        // ✅ Mark profile as completed in context
         await markProfileComplete();
-
-        // Navigation will happen automatically via AppNavigator
         console.log("✅ Profile completed");
     };
 
@@ -719,12 +1098,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                             zIndex={6000}
                         />
 
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Date of Birth (DD/MM/YYYY) *"
-                            placeholderTextColor="#999"
+                        <DatePicker
+                            label="Date of Birth"
                             value={dob}
-                            onChangeText={setDob}
+                            onChange={setDob}
+                            placeholder="Select date of birth"
+                            maximumDate={new Date()}
+                            mode="date"
+                            format="date"
                         />
 
                         {employeeType === "Permanent" && (
@@ -786,23 +1167,25 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                             onChangeText={setCoAddress2}
                         />
 
-                        <View style={styles.row}>
-                            <TextInput
-                                style={[styles.input, styles.halfInput]}
-                                placeholder="State *"
-                                placeholderTextColor="#999"
-                                value={co_state}
-                                onChangeText={setCoState}
-                            />
+                        <SearchableDropdown
+                            label="State"
+                            placeholder="Select state"
+                            open={co_stateOpen}
+                            value={co_state}
+                            items={stateOptions}
+                            setOpen={setCoStateOpen}
+                            setValue={setCoState}
+                            required={true}
+                            zIndex={4000}
+                        />
 
-                            <TextInput
-                                style={[styles.input, styles.halfInput]}
-                                placeholder="City *"
-                                placeholderTextColor="#999"
-                                value={co_city}
-                                onChangeText={setCoCity}
-                            />
-                        </View>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="City *"
+                            placeholderTextColor="#999"
+                            value={co_city}
+                            onChangeText={setCoCity}
+                        />
 
                         <TextInput
                             style={styles.input}
@@ -854,23 +1237,25 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                             onChangeText={setPAddress2}
                         />
 
-                        <View style={styles.row}>
-                            <TextInput
-                                style={[styles.input, styles.halfInput]}
-                                placeholder="State *"
-                                placeholderTextColor="#999"
-                                value={p_state}
-                                onChangeText={setPState}
-                            />
+                        <SearchableDropdown
+                            label="State"
+                            placeholder="Select state"
+                            open={p_stateOpen}
+                            value={p_state}
+                            items={stateOptions}
+                            setOpen={setPStateOpen}
+                            setValue={setPState}
+                            required={true}
+                            zIndex={3000}
+                        />
 
-                            <TextInput
-                                style={[styles.input, styles.halfInput]}
-                                placeholder="City *"
-                                placeholderTextColor="#999"
-                                value={p_city}
-                                onChangeText={setPCity}
-                            />
-                        </View>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="City *"
+                            placeholderTextColor="#999"
+                            value={p_city}
+                            onChangeText={setPCity}
+                        />
 
                         <TextInput
                             style={styles.input}
@@ -900,12 +1285,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                                 onChangeText={setFathersName}
                             />
 
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Father's DOB (DD/MM/YYYY)"
-                                placeholderTextColor="#999"
+                            <DatePicker
+                                label="Father's DOB"
                                 value={fatherDob}
-                                onChangeText={setFatherDob}
+                                onChange={setFatherDob}
+                                placeholder="Select date of birth"
+                                maximumDate={new Date()}
+                                mode="date"
+                                format="date"
                             />
 
                             <TextInput
@@ -916,12 +1303,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                                 onChangeText={setMotherName}
                             />
 
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Mother's DOB (DD/MM/YYYY)"
-                                placeholderTextColor="#999"
+                            <DatePicker
+                                label="Mother's DOB"
                                 value={motherDob}
-                                onChangeText={setMotherDob}
+                                onChange={setMotherDob}
+                                placeholder="Select date of birth"
+                                maximumDate={new Date()}
+                                mode="date"
+                                format="date"
                             />
 
                             {maritalStatus === "Married" && (
@@ -934,12 +1323,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                                         onChangeText={setSpouseName}
                                     />
 
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Spouse DOB (DD/MM/YYYY)"
-                                        placeholderTextColor="#999"
+                                    <DatePicker
+                                        label="Spouse's DOB"
                                         value={spouseDob}
-                                        onChangeText={setSpouseDob}
+                                        onChange={setSpouseDob}
+                                        placeholder="Select date of birth"
+                                        maximumDate={new Date()}
+                                        mode="date"
+                                        format="date"
                                     />
 
                                     <TextInput
@@ -950,12 +1341,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                                         onChangeText={setChild1Name}
                                     />
 
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Child 1 DOB (DD/MM/YYYY)"
-                                        placeholderTextColor="#999"
+                                    <DatePicker
+                                        label="Child 1 DOB"
                                         value={child1Dob}
-                                        onChangeText={setChild1Dob}
+                                        onChange={setChild1Dob}
+                                        placeholder="Select date of birth"
+                                        maximumDate={new Date()}
+                                        mode="date"
+                                        format="date"
                                     />
 
                                     <TextInput
@@ -966,12 +1359,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                                         onChangeText={setChild2Name}
                                     />
 
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Child 2 DOB (DD/MM/YYYY)"
-                                        placeholderTextColor="#999"
+                                    <DatePicker
+                                        label="Child 2 DOB"
                                         value={child2Dob}
-                                        onChangeText={setChild2Dob}
+                                        onChange={setChild2Dob}
+                                        placeholder="Select date of birth"
+                                        maximumDate={new Date()}
+                                        mode="date"
+                                        format="date"
                                     />
                                 </>
                             )}
@@ -1059,13 +1454,27 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                     <View style={[styles.section, { zIndex: 1 }]}>
                         <Text style={styles.sectionTitle}>Bank Details</Text>
 
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Bank Name *"
-                            placeholderTextColor="#999"
+                        <SearchableDropdown
+                            label="Bank Name"
+                            placeholder="Select bank"
+                            open={bankNameOpen}
                             value={bankName}
-                            onChangeText={setBankName}
+                            items={bankOptions}
+                            setOpen={setBankNameOpen}
+                            setValue={setBankName}
+                            required={true}
+                            zIndex={2000}
                         />
+
+                        {bankName === "Other" && (
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter Bank Name *"
+                                placeholderTextColor="#999"
+                                value={otherBankName}
+                                onChangeText={setOtherBankName}
+                            />
+                        )}
 
                         <TextInput
                             style={styles.input}
@@ -1371,6 +1780,14 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                         />
                     </View>
 
+                    {/* Terms & Conditions */}
+                    <TermsAndConditions
+                        accepted={tnc}
+                        onAcceptChange={setTnc}
+                        locked={tncLocked}
+                        required={true}
+                    />
+
                     {/* Submit Button */}
                     <GradientButton
                         title={
@@ -1392,7 +1809,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 onClose={() => setShowPennyModal(false)}
                 onConfirm={handlePennyConfirm}
                 bankDetails={{
-                    bankName,
+                    bankName: bankName === "Other" ? otherBankName : bankName,
                     accountNumber: bankAccount,
                     ifsc,
                 }}
@@ -1553,6 +1970,23 @@ const styles = StyleSheet.create({
     },
     eyeIcon: {
         padding: 15,
+    },
+    tncContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 15,
+        gap: 10,
+    },
+    tncText: {
+        flex: 1,
+        fontSize: 14,
+        color: "#333",
+    },
+    lockedText: {
+        fontSize: 12,
+        color: "#28a745",
+        fontWeight: "600",
+        marginBottom: 10,
     },
 });
 

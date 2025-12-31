@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
         borderWidth: 0,
     },
     closeButtonText: {
-        color: "#E53935",
+        color: "#fff",
         fontSize: 14,
         fontWeight: "600",
     },

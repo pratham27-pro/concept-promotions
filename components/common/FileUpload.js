@@ -1,17 +1,18 @@
-import React, { useState } from "react";
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    Image,
-    Alert,
-    ActionSheetIOS,
-    Platform,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { useState } from "react";
+import {
+    ActionSheetIOS,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 import ImageView from "react-native-image-viewing";
 
 const FileUpload = ({
@@ -30,6 +31,53 @@ const FileUpload = ({
 }) => {
     const [previewVisible, setPreviewVisible] = useState(false);
     const [previewIndex, setPreviewIndex] = useState(0);
+    const [imageLoading, setImageLoading] = useState({});
+    const [imageErrors, setImageErrors] = useState({});
+
+    // ✅ Helper to get file URI from different formats
+    const getFileUri = (fileItem) => {
+        if (!fileItem) return null;
+
+        // If file is a string (direct URL from backend)
+        if (typeof fileItem === "string") {
+            return fileItem;
+        }
+
+        // If file is an object with uri property
+        if (fileItem.uri) {
+            return fileItem.uri;
+        }
+
+        return null;
+    };
+
+    // ✅ Helper to get file name
+    const getFileName = (fileItem) => {
+        if (!fileItem) return "File";
+
+        if (typeof fileItem === "string") {
+            // Extract filename from URL
+            const parts = fileItem.split("/");
+            return parts[parts.length - 1] || "Document";
+        }
+
+        return fileItem.name || fileItem.fileName || "Document";
+    };
+
+    // ✅ Check if file is from backend (already uploaded)
+    const isFromBackend = (fileItem) => {
+        if (!fileItem) return false;
+
+        if (typeof fileItem === "string") {
+            return fileItem.startsWith("http");
+        }
+
+        if (fileItem.uri) {
+            return fileItem.uri.startsWith("http");
+        }
+
+        return false;
+    };
 
     // ✅ Show action sheet to let user choose between Image/Document
     const showPickerOptions = () => {
@@ -153,11 +201,22 @@ const FileUpload = ({
 
     const isImage = (fileItem) => {
         if (!fileItem) return false;
-        const mimeType = fileItem.mimeType || fileItem.type || "";
-        return (
-            mimeType.includes("image") ||
-            fileItem.uri?.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/)
-        );
+
+        const uri = getFileUri(fileItem);
+        if (!uri) return false;
+
+        // Check by URL extension
+        if (uri.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+            return true;
+        }
+
+        // Check by mime type
+        const mimeType =
+            typeof fileItem === "object"
+                ? fileItem.mimeType || fileItem.type || ""
+                : "";
+
+        return mimeType.includes("image");
     };
 
     // ✅ Open image preview in fullscreen
@@ -171,7 +230,7 @@ const FileUpload = ({
     const getImageList = () => {
         if (!file) return [];
         const files = Array.isArray(file) ? file : [file];
-        return files.filter(isImage).map((f) => ({ uri: f.uri }));
+        return files.filter(isImage).map((f) => ({ uri: getFileUri(f) }));
     };
 
     const renderFilePreview = () => {
@@ -179,6 +238,10 @@ const FileUpload = ({
 
         // Handle single file
         if (!Array.isArray(file)) {
+            const uri = getFileUri(file);
+            const fileName = getFileName(file);
+            const fromBackend = isFromBackend(file);
+
             return (
                 <View style={styles.previewContainer}>
                     {isImage(file) ? (
@@ -187,16 +250,72 @@ const FileUpload = ({
                             activeOpacity={0.8}
                         >
                             <Image
-                                source={{ uri: file.uri }}
+                                source={{ uri }}
                                 style={styles.previewImage}
+                                onLoadStart={() =>
+                                    setImageLoading({
+                                        ...imageLoading,
+                                        0: true,
+                                    })
+                                }
+                                onLoadEnd={() =>
+                                    setImageLoading({
+                                        ...imageLoading,
+                                        0: false,
+                                    })
+                                }
+                                onError={() => {
+                                    setImageLoading({
+                                        ...imageLoading,
+                                        0: false,
+                                    });
+                                    setImageErrors({ ...imageErrors, 0: true });
+                                }}
                             />
-                            {enablePreview && (
-                                <View style={styles.zoomIconContainer}>
-                                    <Ionicons
-                                        name="expand-outline"
-                                        size={20}
-                                        color="#fff"
+
+                            {/* Loading indicator */}
+                            {imageLoading[0] && (
+                                <View style={styles.loadingOverlay}>
+                                    <ActivityIndicator
+                                        size="small"
+                                        color="#007AFF"
                                     />
+                                </View>
+                            )}
+
+                            {/* Error overlay */}
+                            {imageErrors[0] && (
+                                <View style={styles.errorImageOverlay}>
+                                    <Ionicons
+                                        name="alert-circle"
+                                        size={30}
+                                        color="#dc3545"
+                                    />
+                                    <Text style={styles.errorText}>
+                                        Failed to load
+                                    </Text>
+                                </View>
+                            )}
+
+                            {/* Zoom icon */}
+                            {enablePreview &&
+                                !imageLoading[0] &&
+                                !imageErrors[0] && (
+                                    <View style={styles.zoomIconContainer}>
+                                        <Ionicons
+                                            name="expand-outline"
+                                            size={20}
+                                            color="#fff"
+                                        />
+                                    </View>
+                                )}
+
+                            {/* Backend indicator */}
+                            {fromBackend && (
+                                <View style={styles.backendBadge}>
+                                    <Text style={styles.backendBadgeText}>
+                                        Uploaded
+                                    </Text>
                                 </View>
                             )}
                         </TouchableOpacity>
@@ -207,21 +326,32 @@ const FileUpload = ({
                                 size={40}
                                 color="#007AFF"
                             />
-                            <Text style={styles.fileName} numberOfLines={1}>
-                                {file.name || "Document"}
+                            <Text style={styles.fileName} numberOfLines={2}>
+                                {fileName}
                             </Text>
+                            {fromBackend && (
+                                <View style={styles.backendBadge}>
+                                    <Text style={styles.backendBadgeText}>
+                                        Uploaded
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                     )}
-                    <TouchableOpacity
-                        style={styles.removeButton}
-                        onPress={() => onFileRemove && onFileRemove()}
-                    >
-                        <Ionicons
-                            name="close-circle"
-                            size={24}
-                            color="#dc3545"
-                        />
-                    </TouchableOpacity>
+
+                    {/* Remove button - only show if not from backend or if onFileRemove exists */}
+                    {onFileRemove && (
+                        <TouchableOpacity
+                            style={styles.removeButton}
+                            onPress={() => onFileRemove()}
+                        >
+                            <Ionicons
+                                name="close-circle"
+                                size={24}
+                                color="#dc3545"
+                            />
+                        </TouchableOpacity>
+                    )}
                 </View>
             );
         }
@@ -230,6 +360,9 @@ const FileUpload = ({
         return (
             <View style={styles.multipleFilesContainer}>
                 {file.map((item, index) => {
+                    const uri = getFileUri(item);
+                    const fileName = getFileName(item);
+                    const fromBackend = isFromBackend(item);
                     const imageIndex = file
                         .slice(0, index)
                         .filter(isImage).length;
@@ -245,15 +378,71 @@ const FileUpload = ({
                                     activeOpacity={0.8}
                                 >
                                     <Image
-                                        source={{ uri: item.uri }}
+                                        source={{ uri }}
                                         style={styles.thumbnailImage}
+                                        onLoadStart={() =>
+                                            setImageLoading({
+                                                ...imageLoading,
+                                                [index]: true,
+                                            })
+                                        }
+                                        onLoadEnd={() =>
+                                            setImageLoading({
+                                                ...imageLoading,
+                                                [index]: false,
+                                            })
+                                        }
+                                        onError={() => {
+                                            setImageLoading({
+                                                ...imageLoading,
+                                                [index]: false,
+                                            });
+                                            setImageErrors({
+                                                ...imageErrors,
+                                                [index]: true,
+                                            });
+                                        }}
                                     />
-                                    {enablePreview && (
-                                        <View style={styles.zoomIconSmall}>
+
+                                    {imageLoading[index] && (
+                                        <View
+                                            style={styles.loadingOverlaySmall}
+                                        >
+                                            <ActivityIndicator
+                                                size="small"
+                                                color="#007AFF"
+                                            />
+                                        </View>
+                                    )}
+
+                                    {imageErrors[index] && (
+                                        <View style={styles.errorThumbnail}>
                                             <Ionicons
-                                                name="expand-outline"
-                                                size={14}
-                                                color="#fff"
+                                                name="alert-circle"
+                                                size={20}
+                                                color="#dc3545"
+                                            />
+                                        </View>
+                                    )}
+
+                                    {enablePreview &&
+                                        !imageLoading[index] &&
+                                        !imageErrors[index] && (
+                                            <View style={styles.zoomIconSmall}>
+                                                <Ionicons
+                                                    name="expand-outline"
+                                                    size={14}
+                                                    color="#fff"
+                                                />
+                                            </View>
+                                        )}
+
+                                    {fromBackend && (
+                                        <View style={styles.backendBadgeSmall}>
+                                            <Ionicons
+                                                name="checkmark-circle"
+                                                size={16}
+                                                color="#28a745"
                                             />
                                         </View>
                                     )}
@@ -267,27 +456,39 @@ const FileUpload = ({
                                     />
                                     <Text
                                         style={styles.fileNameSmall}
-                                        numberOfLines={1}
+                                        numberOfLines={2}
                                     >
-                                        {item.name}
+                                        {fileName}
                                     </Text>
+                                    {fromBackend && (
+                                        <View style={styles.backendBadgeSmall}>
+                                            <Ionicons
+                                                name="checkmark-circle"
+                                                size={16}
+                                                color="#28a745"
+                                            />
+                                        </View>
+                                    )}
                                 </View>
                             )}
-                            <TouchableOpacity
-                                style={styles.removeIconSmall}
-                                onPress={() => {
-                                    const newFiles = file.filter(
-                                        (_, i) => i !== index
-                                    );
-                                    onFileRemove && onFileRemove(newFiles);
-                                }}
-                            >
-                                <Ionicons
-                                    name="close-circle"
-                                    size={20}
-                                    color="#dc3545"
-                                />
-                            </TouchableOpacity>
+
+                            {onFileRemove && (
+                                <TouchableOpacity
+                                    style={styles.removeIconSmall}
+                                    onPress={() => {
+                                        const newFiles = file.filter(
+                                            (_, i) => i !== index
+                                        );
+                                        onFileRemove(newFiles);
+                                    }}
+                                >
+                                    <Ionicons
+                                        name="close-circle"
+                                        size={20}
+                                        color="#dc3545"
+                                    />
+                                </TouchableOpacity>
+                            )}
                         </View>
                     );
                 })}
@@ -424,6 +625,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#333",
         maxWidth: 200,
+        textAlign: "center",
     },
     fileNameSmall: {
         marginTop: 4,
@@ -457,6 +659,7 @@ const styles = StyleSheet.create({
         backgroundColor: "#f0f0f0",
         justifyContent: "center",
         alignItems: "center",
+        padding: 5,
     },
     removeIconSmall: {
         position: "absolute",
@@ -464,6 +667,11 @@ const styles = StyleSheet.create({
         right: -5,
         backgroundColor: "#fff",
         borderRadius: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 3,
     },
     addMoreButton: {
         flexDirection: "row",
@@ -483,6 +691,52 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 5,
     },
+    loadingOverlay: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: 120,
+        height: 120,
+        backgroundColor: "rgba(255, 255, 255, 0.8)",
+        justifyContent: "center",
+        alignItems: "center",
+        borderRadius: 10,
+    },
+    loadingOverlaySmall: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(255, 255, 255, 0.8)",
+        justifyContent: "center",
+        alignItems: "center",
+        borderRadius: 8,
+    },
+    errorImageOverlay: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: 120,
+        height: 120,
+        backgroundColor: "rgba(220, 53, 69, 0.1)",
+        justifyContent: "center",
+        alignItems: "center",
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: "#dc3545",
+    },
+    errorThumbnail: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(220, 53, 69, 0.1)",
+        justifyContent: "center",
+        alignItems: "center",
+        borderRadius: 8,
+    },
     zoomIconContainer: {
         position: "absolute",
         bottom: 15,
@@ -498,6 +752,28 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(0, 0, 0, 0.5)",
         borderRadius: 10,
         padding: 3,
+    },
+    backendBadge: {
+        position: "absolute",
+        top: 5,
+        left: 5,
+        backgroundColor: "#28a745",
+        borderRadius: 10,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+    },
+    backendBadgeText: {
+        color: "#fff",
+        fontSize: 10,
+        fontWeight: "600",
+    },
+    backendBadgeSmall: {
+        position: "absolute",
+        top: 5,
+        left: 5,
+        backgroundColor: "#fff",
+        borderRadius: 10,
+        padding: 2,
     },
 });
 

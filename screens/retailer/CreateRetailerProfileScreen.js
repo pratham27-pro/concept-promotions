@@ -3,7 +3,6 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
-import * as RootNavigation from "../../navigation/RootNavigation";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -20,6 +19,7 @@ import {
 } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as RootNavigation from "../../navigation/RootNavigation";
 
 import PennyTransferModal from "../../components/PennyTransferModal";
 import SuccessModal from "../../components/SuccessModal";
@@ -28,6 +28,7 @@ import Header from "../../components/common/Header";
 import PhotoPicker from "../../components/common/PhotoPicker";
 import TermsAndConditions from "../../components/data/TermsAndConditions";
 import { bankOptions, stateOptions } from "../../components/data/common";
+import FileUpload from "../../components/common/FileUpload";
 
 const API_BASE_URL = "https://deployed-site-o2d3.onrender.com/api";
 
@@ -161,6 +162,12 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
     const PINCODE_REGEX = /^\d{6}$/;
 
+    const [existingPersonPhoto, setExistingPersonPhoto] = useState(null);
+    const [existingGovtIdPhoto, setExistingGovtIdPhoto] = useState(null);
+    const [existingOutletPhoto, setExistingOutletPhoto] = useState(null);
+    const [existingRegistrationForm, setExistingRegistrationForm] =
+        useState(null);
+
     // Format date for input
     const formatDateForInput = (dateString) => {
         if (!dateString) return null;
@@ -276,6 +283,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 setProfileExists(true);
                 setRetailerId(clean._id);
                 prefillForm(clean);
+
+                // ✅ Fetch images using the backend endpoint
+                await fetchImages(token);
+
                 console.log("✅ Profile loaded");
             } else {
                 setProfileExists(false);
@@ -286,6 +297,140 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             setProfileExists(false);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // ✅ Add this function if you don't have it already
+    const fetchImages = async (token) => {
+        try {
+            // First, check which images exist
+            const imageStatusRes = await fetch(
+                `${API_BASE_URL}/retailer/retailer/image-status`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+
+            if (!imageStatusRes.ok) {
+                console.log("⚠️ Image status endpoint not available");
+                return;
+            }
+
+            const imageStatus = await imageStatusRes.json();
+            console.log("🖼️ Image status:", imageStatus);
+
+            // ✅ Fetch person photo
+            if (imageStatus.hasPersonPhoto) {
+                try {
+                    const imgRes = await fetch(
+                        `${API_BASE_URL}/retailer/retailer/image/personPhoto`,
+                        {
+                            headers: { Authorization: `Bearer ${token}` },
+                        }
+                    );
+
+                    if (imgRes.ok) {
+                        const blob = await imgRes.blob();
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64data = reader.result;
+                            setPersonPhoto({ uri: base64data });
+                            setExistingPersonPhoto(base64data);
+                            console.log("✅ Person photo loaded");
+                        };
+                        reader.readAsDataURL(blob);
+                    }
+                } catch (err) {
+                    console.error("❌ Error fetching person photo:", err);
+                }
+            }
+
+            // ✅ Fetch govt ID photo
+            if (imageStatus.hasGovtIdPhoto) {
+                try {
+                    const imgRes = await fetch(
+                        `${API_BASE_URL}/retailer/retailer/image/govtIdPhoto`,
+                        {
+                            headers: { Authorization: `Bearer ${token}` },
+                        }
+                    );
+
+                    if (imgRes.ok) {
+                        const blob = await imgRes.blob();
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64data = reader.result;
+                            setGovtIdPhoto({ uri: base64data });
+                            setExistingGovtIdPhoto(base64data);
+                            console.log("✅ Govt ID photo loaded");
+                        };
+                        reader.readAsDataURL(blob);
+                    }
+                } catch (err) {
+                    console.error("❌ Error fetching govt ID photo:", err);
+                }
+            }
+
+            // ✅ Fetch outlet photo (THIS WAS MISSING!)
+            if (imageStatus.hasOutletPhoto) {
+                try {
+                    const imgRes = await fetch(
+                        `${API_BASE_URL}/retailer/retailer/image/outletPhoto`,
+                        {
+                            headers: { Authorization: `Bearer ${token}` },
+                        }
+                    );
+
+                    if (imgRes.ok) {
+                        const blob = await imgRes.blob();
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64data = reader.result;
+                            setOutletPhoto({ uri: base64data });
+                            setExistingOutletPhoto(base64data);
+                            console.log("✅ Outlet photo loaded");
+                        };
+                        reader.readAsDataURL(blob);
+                    } else {
+                        console.log(
+                            "⚠️ Outlet photo fetch failed:",
+                            imgRes.status
+                        );
+                    }
+                } catch (err) {
+                    console.error("❌ Error fetching outlet photo:", err);
+                }
+            } else {
+                console.log("ℹ️ No outlet photo found on backend");
+            }
+
+            // ✅ Fetch registration form
+            if (imageStatus.hasRegistrationFormFile) {
+                try {
+                    const imgRes = await fetch(
+                        `${API_BASE_URL}/retailer/retailer/image/registrationFormFile`,
+                        {
+                            headers: { Authorization: `Bearer ${token}` },
+                        }
+                    );
+
+                    if (imgRes.ok) {
+                        const blob = await imgRes.blob();
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const base64data = reader.result;
+                            setRegistrationForm({ uri: base64data });
+                            setExistingRegistrationForm(base64data);
+                            console.log("✅ Registration form loaded");
+                        };
+                        reader.readAsDataURL(blob);
+                    }
+                } catch (err) {
+                    console.error("❌ Error fetching registration form:", err);
+                }
+            }
+        } catch (error) {
+            console.error("❌ Error fetching images:", error);
         }
     };
 
@@ -334,8 +479,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 }
             }
 
-            if (data.shopDetails.outletPhoto)
-                setOutletPhoto({ uri: data.shopDetails.outletPhoto });
+            // ❌ REMOVE IMAGE PREFILLING - Images will be fetched separately
+            // if (data.shopDetails.outletPhoto)
+            //     setOutletPhoto({ uri: data.shopDetails.outletPhoto });
         }
 
         if (data.bankDetails) {
@@ -366,8 +512,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             setOriginalBankDetails(bankDetails);
         }
 
-        if (data.personPhoto) setPersonPhoto({ uri: data.personPhoto });
-        if (data.govtIdPhoto) setGovtIdPhoto({ uri: data.govtIdPhoto });
+        // ❌ REMOVE IMAGE PREFILLING
+        // if (data.personPhoto) setPersonPhoto({ uri: data.personPhoto });
+        // if (data.govtIdPhoto) setGovtIdPhoto({ uri: data.govtIdPhoto });
 
         setTimeout(() => {
             isUpdatingFromBackend.current = false;
@@ -431,8 +578,12 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const validateGST = (value) => {
         const upperValue = value.toUpperCase();
         setGstNo(upperValue);
-        if (value && !GST_REGEX.test(upperValue)) {
-            setGstError("Invalid GST format (15 characters)");
+        const GST_REGEX =
+            /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+        if (value === "") {
+            setGstError("");
+        } else if (!GST_REGEX.test(upperValue)) {
+            setGstError("Invalid GST Number format (e.g., 29ABCDE1234F1Z5)");
         } else {
             setGstError("");
         }
@@ -450,8 +601,11 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
     const validateIFSC = (value) => {
         const upperValue = value.toUpperCase();
         setIfsc(upperValue);
-        if (value && !IFSC_REGEX.test(upperValue)) {
-            setIfscError("Invalid IFSC code format");
+        const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+        if (value === "") {
+            setIfscError("");
+        } else if (!IFSC_REGEX.test(upperValue)) {
+            setIfscError("Invalid IFSC Code format (e.g., HDFC0001234)");
         } else {
             setIfscError("");
         }
@@ -664,159 +818,121 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 return;
             }
 
-            const endpoint = profileExists
-                ? `${API_BASE_URL}/retailer/me`
-                : `${API_BASE_URL}/admin/retailers`;
-
-            const method = profileExists ? "PATCH" : "POST";
+            // Always use PATCH endpoint like web version
+            const endpoint = `${API_BASE_URL}/retailer/me`;
+            const method = "PATCH";
 
             console.log(`📤 ${method} ${endpoint}`);
 
-            // ✅ Build multipart form data manually
-            const boundary = `----WebKitFormBoundary${Math.random()
-                .toString(36)
-                .substring(2)}`;
-            let bodyParts = [];
+            // Build FormData (simplified like web)
+            const formData = new FormData();
 
-            // Helper to add text field
-            const addField = (name, value) => {
-                bodyParts.push(
-                    `--${boundary}\r\n` +
-                        `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
-                        `${value}`
-                );
-            };
+            // Personal details
+            formData.append("name", name.trim());
+            formData.append("contactNo", contactNo);
+            formData.append("email", email.trim() || "");
+            formData.append("altContactNo", altContactNo || "");
+            formData.append("dob", dob ? formatDateForAPI(dob) : "");
+            formData.append("gender", gender || "");
+            formData.append("govtIdType", govtIdType || "");
+            formData.append("govtIdNumber", govtIdNumber.trim() || "");
 
-            // Helper to add file field
-            const addFile = async (fieldName, file) => {
-                try {
-                    const fileContent = await FileSystem.readAsStringAsync(
-                        file.uri,
-                        {
-                            encoding: FileSystem.EncodingType.Base64,
-                        }
-                    );
+            // Shop details
+            formData.append("shopName", shopName.trim());
+            formData.append("businessType", businessType || "");
+            formData.append("ownershipType", ownershipType || "");
+            formData.append("GSTNo", gstNo.trim() || "");
+            formData.append("PANCard", panCard.trim());
 
-                    bodyParts.push(
-                        `--${boundary}\r\n` +
-                            `Content-Disposition: form-data; name="${fieldName}"; filename="${file.name}"\r\n` +
-                            `Content-Type: ${file.type}\r\n` +
-                            `Content-Transfer-Encoding: base64\r\n\r\n` +
-                            fileContent
-                    );
+            // Shop address
+            formData.append("address", address1.trim());
+            formData.append("address2", address2.trim() || "");
+            formData.append("city", city.trim());
+            formData.append("state", state);
+            formData.append("pincode", String(pincode).trim());
 
-                    return true;
-                } catch (error) {
-                    console.error(`Error reading file ${fieldName}:`, error);
-                    return false;
-                }
-            };
-
-            // Add all text fields
-            addField("name", name.trim());
-            addField("contactNo", contactNo);
-            addField("govtIdType", govtIdType);
-            addField("govtIdNumber", govtIdNumber.trim());
-            addField("shopName", shopName.trim());
-            addField("businessType", businessType);
-            addField("ownershipType", ownershipType);
-            addField("PANCard", panCard.trim());
-            addField("address", address1.trim());
-            addField("city", city.trim());
-            addField("state", state);
-            addField("pincode", String(pincode).trim());
-            addField(
+            // Bank details
+            formData.append(
                 "bankName",
                 bankName === "Other" ? otherBankName : bankName
             );
-            addField("accountNumber", accountNumber.trim());
-            addField("IFSC", ifsc.trim());
-            addField("branchName", branchName.trim());
-            addField("tnc", tnc.toString());
-            addField("pennyCheck", pennyCheck.toString());
+            formData.append("accountNumber", accountNumber.trim());
+            formData.append("IFSC", ifsc.trim());
+            formData.append("branchName", branchName.trim());
 
-            // Optional fields
-            if (email.trim()) addField("email", email.trim());
-            if (altContactNo) addField("altContactNo", altContactNo);
-            if (dob) addField("dob", formatDateForAPI(dob));
-            if (gender) addField("gender", gender);
-            if (gstNo.trim()) addField("GSTNo", gstNo.trim());
-            if (address2.trim()) addField("address2", address2.trim());
+            // T&C and Penny Check
+            formData.append("tnc", tnc.toString());
+            formData.append("pennyCheck", pennyCheck.toString());
 
-            // Add files
-            if (personPhoto && !personPhoto.uri?.startsWith("http")) {
-                console.log("📸 Adding personPhoto");
-                await addFile("personPhoto", {
+            // Files - only append if new files selected (not existing URLs)
+            if (personPhoto && personPhoto.uri !== existingPersonPhoto) {
+                formData.append("personPhoto", {
                     uri: personPhoto.uri,
-                    name:
-                        personPhoto.fileName ||
-                        personPhoto.name ||
-                        `person_${Date.now()}.jpg`,
                     type:
                         personPhoto.type ||
                         personPhoto.mimeType ||
                         "image/jpeg",
+                    name:
+                        personPhoto.fileName ||
+                        personPhoto.name ||
+                        `person_${Date.now()}.jpg`,
                 });
             }
 
-            if (govtIdPhoto && !govtIdPhoto.uri?.startsWith("http")) {
-                console.log("📄 Adding govtIdPhoto");
-                await addFile("govtIdPhoto", {
+            if (govtIdPhoto && govtIdPhoto.uri !== existingGovtIdPhoto) {
+                formData.append("govtIdPhoto", {
                     uri: govtIdPhoto.uri,
-                    name:
-                        govtIdPhoto.name ||
-                        govtIdPhoto.fileName ||
-                        `govtid_${Date.now()}.jpg`,
                     type:
                         govtIdPhoto.mimeType ||
                         govtIdPhoto.type ||
                         "image/jpeg",
+                    name:
+                        govtIdPhoto.name ||
+                        govtIdPhoto.fileName ||
+                        `govtid_${Date.now()}.jpg`,
                 });
             }
 
-            if (outletPhoto && !outletPhoto.uri?.startsWith("http")) {
-                console.log("🏪 Adding outletPhoto");
-                await addFile("outletPhoto", {
+            if (outletPhoto && outletPhoto.uri !== existingOutletPhoto) {
+                formData.append("outletPhoto", {
                     uri: outletPhoto.uri,
-                    name:
-                        outletPhoto.fileName ||
-                        outletPhoto.name ||
-                        `outlet_${Date.now()}.jpg`,
                     type:
                         outletPhoto.type ||
                         outletPhoto.mimeType ||
                         "image/jpeg",
+                    name:
+                        outletPhoto.fileName ||
+                        outletPhoto.name ||
+                        `outlet_${Date.now()}.jpg`,
                 });
             }
 
-            if (registrationForm && !registrationForm.uri?.startsWith("http")) {
-                console.log("📋 Adding registrationForm");
-                await addFile("registrationFormFile", {
+            if (
+                registrationForm &&
+                registrationForm.uri !== existingRegistrationForm
+            ) {
+                formData.append("registrationFormFile", {
                     uri: registrationForm.uri,
-                    name:
-                        registrationForm.name ||
-                        registrationForm.fileName ||
-                        `registration_${Date.now()}.jpg`,
                     type:
                         registrationForm.mimeType ||
                         registrationForm.type ||
                         "image/jpeg",
+                    name:
+                        registrationForm.name ||
+                        registrationForm.fileName ||
+                        `registration_${Date.now()}.jpg`,
                 });
             }
 
-            // Combine all parts and close boundary
-            const body = bodyParts.join("\r\n") + `\r\n--${boundary}--\r\n`;
-
             console.log("🚀 Sending request...");
 
-            // Send with fetch
             const response = await fetch(endpoint, {
                 method: method,
                 headers: {
                     Authorization: `Bearer ${token}`,
-                    "Content-Type": `multipart/form-data; boundary=${boundary}`,
+                    "Content-Type": "multipart/form-data",
                 },
-                body: body,
+                body: formData,
             });
 
             console.log("📥 Response status:", response.status);
@@ -840,7 +956,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
             console.log("✅ Profile saved successfully!");
 
-            // ✅ Update state with response
+            // Update state with response (same logic as web)
             isUpdatingFromBackend.current = true;
 
             const r = data.retailer || data;
@@ -850,6 +966,8 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             if (r.altContactNo) setAltContactNo(r.altContactNo);
             if (r.dob) setDob(formatDateForInput(r.dob));
             if (r.gender) setGender(r.gender);
+            if (r.govtIdType) setGovtIdType(r.govtIdType);
+            if (r.govtIdNumber) setGovtIdNumber(r.govtIdNumber);
 
             if (r.shopDetails) {
                 if (r.shopDetails.shopName) setShopName(r.shopDetails.shopName);
@@ -958,7 +1076,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         }
     };
 
-    console.log("navigation: ", navigation.getState());
     const handleSuccessClose = () => {
         setShowSuccessModal(false);
         RootNavigation.resetToRetailerHome();
@@ -1338,40 +1455,14 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             ) : null}
                         </View>
 
-                        <View style={styles.uploadGroup}>
-                            <Text style={styles.label}>Outlet Photo</Text>
-                            {!outletPhoto ? (
-                                <TouchableOpacity
-                                    style={styles.uploadButton}
-                                    onPress={pickOutletPhoto}
-                                >
-                                    <Text style={styles.uploadButtonText}>
-                                        + Upload Photo
-                                    </Text>
-                                </TouchableOpacity>
-                            ) : (
-                                <View style={styles.uploadedFile}>
-                                    {outletPhoto.uri?.startsWith("http") ? (
-                                        <Image
-                                            source={{ uri: outletPhoto.uri }}
-                                            style={styles.thumbnail}
-                                        />
-                                    ) : (
-                                        <Image
-                                            source={{ uri: outletPhoto.uri }}
-                                            style={styles.thumbnail}
-                                        />
-                                    )}
-                                    <TouchableOpacity
-                                        onPress={() => setOutletPhoto(null)}
-                                    >
-                                        <Text style={styles.removeText}>
-                                            ✕ Remove
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                        </View>
+                        <FileUpload
+                            label="Outlet Photo"
+                            file={outletPhoto}
+                            onFileSelect={setOutletPhoto}
+                            onFileRemove={() => setOutletPhoto(null)}
+                            accept="image"
+                            required={!profileExists}
+                        />
 
                         <Text style={styles.subsectionTitle}>Shop Address</Text>
 

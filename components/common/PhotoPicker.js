@@ -1,14 +1,15 @@
-import React from "react";
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    Image,
-    Alert,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import React from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
 const PhotoPicker = ({
     label,
@@ -25,6 +26,9 @@ const PhotoPicker = ({
     allowEditing = true,
     quality = 0.8,
 }) => {
+    const [imageLoading, setImageLoading] = React.useState(false);
+    const [imageError, setImageError] = React.useState(false);
+
     const pickPhoto = async () => {
         if (disabled) return;
 
@@ -49,6 +53,7 @@ const PhotoPicker = ({
             });
 
             if (!result.canceled) {
+                setImageError(false);
                 onPhotoSelect(result.assets[0]);
             }
         } catch (error) {
@@ -85,6 +90,26 @@ const PhotoPicker = ({
         }
     };
 
+    // ✅ Helper to get image URI - MUST return a string, not an object
+    const getImageUri = () => {
+        if (!photo) return null;
+
+        // If photo is a string (direct URL from backend)
+        if (typeof photo === "string") {
+            return photo;
+        }
+
+        // If photo is an object with uri property
+        if (photo && photo.uri) {
+            return photo.uri;
+        }
+
+        return null;
+    };
+
+    const imageUri = getImageUri();
+    const hasPhoto = !!imageUri;
+
     return (
         <View style={[styles.container, style]}>
             {label && (
@@ -103,22 +128,55 @@ const PhotoPicker = ({
                 disabled={disabled}
                 activeOpacity={0.7}
             >
-                {photo ? (
+                {hasPhoto ? (
                     <>
+                        {/* ✅ FIXED: Pass uri as string, not object */}
                         <Image
-                            source={{
-                                uri:
-                                    typeof photo === "string"
-                                        ? photo
-                                        : photo.uri,
-                            }}
+                            source={{ uri: imageUri }}
                             style={[styles.photo, getShapeStyle()]}
+                            onLoadStart={() => setImageLoading(true)}
+                            onLoadEnd={() => setImageLoading(false)}
+                            onError={() => {
+                                setImageLoading(false);
+                                setImageError(true);
+                            }}
                         />
-                        {!disabled && onPhotoRemove && (
+
+                        {/* ✅ Loading indicator while image loads */}
+                        {imageLoading && (
+                            <View
+                                style={[styles.loadingOverlay, getShapeStyle()]}
+                            >
+                                <ActivityIndicator
+                                    size="small"
+                                    color="#007AFF"
+                                />
+                            </View>
+                        )}
+
+                        {/* ✅ Error state if image fails to load */}
+                        {imageError && (
+                            <View
+                                style={[styles.errorOverlay, getShapeStyle()]}
+                            >
+                                <Ionicons
+                                    name="alert-circle"
+                                    size={30}
+                                    color="#dc3545"
+                                />
+                                <Text style={styles.errorOverlayText}>
+                                    Failed to load
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* ✅ Remove button - only show if not disabled and callback exists */}
+                        {!disabled && onPhotoRemove && !imageLoading && (
                             <TouchableOpacity
                                 style={styles.removeButton}
                                 onPress={(e) => {
                                     e.stopPropagation();
+                                    setImageError(false);
                                     onPhotoRemove();
                                 }}
                             >
@@ -128,6 +186,17 @@ const PhotoPicker = ({
                                     color="#dc3545"
                                 />
                             </TouchableOpacity>
+                        )}
+
+                        {/* ✅ Edit icon overlay to indicate it's editable */}
+                        {!disabled && !imageLoading && (
+                            <View style={styles.editOverlay}>
+                                <Ionicons
+                                    name="camera"
+                                    size={20}
+                                    color="#fff"
+                                />
+                            </View>
                         )}
                     </>
                 ) : (
@@ -181,6 +250,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
         fontSize: 12,
         color: "#666",
+        textAlign: "center",
     },
     removeButton: {
         position: "absolute",
@@ -188,6 +258,45 @@ const styles = StyleSheet.create({
         right: -5,
         backgroundColor: "#fff",
         borderRadius: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 3,
+    },
+    editOverlay: {
+        position: "absolute",
+        bottom: 5,
+        right: 5,
+        backgroundColor: "rgba(0, 122, 255, 0.8)",
+        borderRadius: 15,
+        width: 30,
+        height: 30,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    loadingOverlay: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        backgroundColor: "rgba(255, 255, 255, 0.8)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    errorOverlay: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        backgroundColor: "rgba(220, 53, 69, 0.1)",
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: "#dc3545",
+    },
+    errorOverlayText: {
+        fontSize: 10,
+        color: "#dc3545",
+        marginTop: 4,
     },
     disabled: {
         opacity: 0.5,
