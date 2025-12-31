@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import * as FileSystem from "expo-file-system";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -34,7 +33,7 @@ import DatePicker from "../../components/common/DatePicker";
 import { bankOptions, stateOptions } from "../../components/data/common";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+const API_BASE_URL = "https://deployed-site-o2d3.onrender.com/api";
 
 const CompleteEmployeeProfileScreen = ({ navigation }) => {
     const { markProfileComplete, userProfile, refreshProfile } = useAuth();
@@ -189,8 +188,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
     //     };
     // }, [imageUrls]);
 
-    // ✅ FINAL PRODUCTION VERSION - Fetch employee documents
-    // ✅ FINAL WORKING VERSION - Fetch employee documents
+    // ✅ COMPLETE FUNCTION - Fetch employee documents with MIME type fix
     const fetchEmployeeDocuments = async () => {
         try {
             setLoadingImages(true);
@@ -222,7 +220,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 cv: { setter: setCv, name: "CV" },
             };
 
-            // Helper function to fetch using XMLHttpRequest
+            // ✅ FIXED Helper function - handles double-encoding
             const fetchDocument = (url, token) => {
                 return new Promise((resolve, reject) => {
                     const xhr = new XMLHttpRequest();
@@ -232,23 +230,119 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                         console.log(`📥 Response for ${url}: ${xhr.status}`);
 
                         if (xhr.status === 200) {
+                            const blob = xhr.response;
                             const reader = new FileReader();
+
                             reader.onloadend = () => {
+                                let base64Data = reader.result;
+
+                                if (
+                                    !base64Data ||
+                                    !base64Data.startsWith("data:")
+                                ) {
+                                    console.error(
+                                        `❌ Invalid data URI for ${url}`
+                                    );
+                                    reject(new Error("Invalid data URI"));
+                                    return;
+                                }
+
+                                let base64Content = base64Data.split(",")[1];
+
+                                // ✅ DETECT AND FIX DOUBLE-ENCODING
+                                // Check if it starts with LzlqLz (double-encoded JPEG)
+                                if (base64Content?.startsWith("LzlqLz")) {
+                                    console.log(
+                                        `🔧 Detected double-encoded image, decoding...`
+                                    );
+                                    try {
+                                        // Decode the first layer to get the actual base64 image
+                                        const decodedContent =
+                                            atob(base64Content);
+
+                                        // Check if decoded content looks like base64 (starts with /9j/)
+                                        if (
+                                            decodedContent.startsWith("/9j/") ||
+                                            decodedContent.startsWith("iVBOR")
+                                        ) {
+                                            base64Content = decodedContent;
+                                            console.log(
+                                                `✅ Successfully decoded double-encoded image`
+                                            );
+                                        }
+                                    } catch (decodeError) {
+                                        console.error(
+                                            `❌ Failed to decode:`,
+                                            decodeError
+                                        );
+                                    }
+                                }
+
+                                // Detect image type
+                                const isJPEG =
+                                    base64Content?.startsWith("/9j/");
+                                const isPNG =
+                                    base64Content?.startsWith("iVBOR");
+
+                                // Reconstruct with correct MIME type
+                                if (isPNG) {
+                                    base64Data = `data:image/png;base64,${base64Content}`;
+                                    console.log(
+                                        `🔧 Set MIME type to image/png`
+                                    );
+                                } else if (isJPEG) {
+                                    base64Data = `data:image/jpeg;base64,${base64Content}`;
+                                    console.log(
+                                        `🔧 Set MIME type to image/jpeg`
+                                    );
+                                } else {
+                                    console.warn(
+                                        `⚠️ Unknown image format, first chars: ${base64Content?.substring(
+                                            0,
+                                            20
+                                        )}`
+                                    );
+                                }
+
+                                const mimeMatch =
+                                    base64Data.match(/^data:([^;]+);/);
+                                const mimeType = mimeMatch
+                                    ? mimeMatch[1]
+                                    : "unknown";
+
+                                console.log(
+                                    `✅ Data URI created for ${url
+                                        .split("/")
+                                        .pop()}`
+                                );
+                                console.log(`   Length: ${base64Data.length}`);
+                                console.log(`   MIME: ${mimeType}`);
+                                console.log(
+                                    `   Preview: ${base64Data.substring(
+                                        0,
+                                        50
+                                    )}...`
+                                );
+
                                 resolve({
                                     success: true,
-                                    base64: reader.result,
+                                    dataUri: base64Data,
+                                    mimeType: mimeType,
                                     status: xhr.status,
                                 });
                             };
-                            reader.onerror = () =>
+
+                            reader.onerror = (error) => {
+                                console.error("❌ FileReader error:", error);
                                 reject(new Error("FileReader error"));
-                            reader.readAsDataURL(xhr.response);
+                            };
+
+                            reader.readAsDataURL(blob);
                         } else if (xhr.status === 404) {
+                            console.log(`ℹ️ Document not found (404)`);
                             resolve({ success: false, status: 404 });
                         } else {
-                            console.error(
-                                `❌ Unexpected status ${xhr.status} for ${url}`
-                            );
+                            console.error(`❌ Unexpected status ${xhr.status}`);
                             resolve({ success: false, status: xhr.status });
                         }
                     };
@@ -264,20 +358,46 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 });
             };
 
+            // ✅ Loop through documents and fetch them
             for (const [type, config] of Object.entries(documentMap)) {
                 try {
                     const url = `${API_BASE_URL}/employee/employee/document/${type}`;
-                    console.log(`🔍 Fetching: ${url}`);
+                    console.log(`🔍 Fetching: ${type}`);
 
-                    const result = await fetchDocument(url, token);
+                    const result = await fetchDocument(url, token); // ← Called here!
 
                     if (result.success) {
-                        config.setter({
-                            uri: result.base64,
-                            name: config.name,
-                            fromBackend: true,
-                        });
-                        console.log(`✅ ${type} loaded successfully`);
+                        if (type === "personPhoto") {
+                            // For PhotoPicker - simple object
+                            config.setter({ uri: result.dataUri });
+                            console.log(
+                                `✅ ${type} loaded (PhotoPicker format)`
+                            );
+                            console.log(
+                                `   URI type: ${typeof result.dataUri}`
+                            );
+                            console.log(
+                                `   Starts with data: ${result.dataUri.startsWith(
+                                    "data:"
+                                )}`
+                            );
+                            console.log(
+                                `   First 100 chars: ${result.dataUri.substring(
+                                    0,
+                                    100
+                                )}`
+                            );
+                        } else {
+                            // For FileUpload components
+                            config.setter({
+                                uri: result.dataUri,
+                                name: config.name,
+                                fromBackend: true,
+                            });
+                            console.log(
+                                `✅ ${type} loaded (FileUpload format)`
+                            );
+                        }
                     } else if (result.status === 404) {
                         console.log(`ℹ️ ${type} not found (not uploaded yet)`);
                     } else {
@@ -433,7 +553,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
             const bankDetails = {
                 bankName: data.bankDetails.bankName || "",
                 accountNumber: data.bankDetails.accountNumber || "",
-                ifsc: data.bankDetails.IFSC || "",
+                ifsc: data.bankDetails.ifsc || "",
                 branchName: data.bankDetails.branchName || "",
             };
 
@@ -450,7 +570,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 setBankAccount(data.bankDetails.accountNumber);
                 setConfirmBankAccount(data.bankDetails.accountNumber);
             }
-            if (data.bankDetails.IFSC) setIfsc(data.bankDetails.IFSC);
+            if (data.bankDetails.ifsc) setIfsc(data.bankDetails.ifsc);
             if (data.bankDetails.branchName)
                 setBranchName(data.bankDetails.branchName);
 
@@ -735,7 +855,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 );
             };
 
-            // ✅ UPDATED: Helper to add file field with proper skip logic
+            // ✅ UPDATED: Helper to add file field - optimized for base64
             const addFile = async (fieldName, file) => {
                 if (!file) {
                     console.log(`⚠️ Skipping ${fieldName} - no file`);
@@ -758,22 +878,51 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                     return false;
                 }
 
-                // ✅ Skip if it's an HTTP URL
-                if (file.uri && file.uri.startsWith("http")) {
+                // ✅ Skip if it's an HTTP URL or data URI from backend
+                if (
+                    file.uri &&
+                    (file.uri.startsWith("http") ||
+                        file.uri.startsWith("data:"))
+                ) {
                     console.log(
-                        `⚠️ Skipping ${fieldName} - already uploaded (HTTP URL)`
+                        `⚠️ Skipping ${fieldName} - already uploaded (existing URL)`
                     );
                     return false;
                 }
 
+                // In your handleSubmit function, before adding files:
+                console.log("📸 Person Photo State:", {
+                    exists: !!personPhoto,
+                    type: typeof personPhoto,
+                    hasUri: personPhoto?.uri ? "yes" : "no",
+                    hasBase64: personPhoto?.base64 ? "yes" : "no",
+                    fromBackend: personPhoto?.fromBackend,
+                    uriPreview: personPhoto?.uri?.substring(0, 50),
+                });
+
                 // ✅ It's a new local file, upload it
                 try {
-                    const fileContent = await FileSystem.readAsStringAsync(
-                        file.uri,
-                        {
-                            encoding: "base64",
-                        }
-                    );
+                    let fileContent;
+
+                    // ✅ Check if base64 is already available (from PhotoPicker)
+                    if (file.base64) {
+                        console.log(
+                            `✅ Using pre-loaded base64 for ${fieldName}`
+                        );
+                        fileContent = file.base64;
+                    } else {
+                        // ✅ Fallback: Read from file system (for documents picked via FileUpload)
+                        console.log(
+                            `📄 Reading file from filesystem for ${fieldName}`
+                        );
+                        const FileSystem = require("expo-file-system/legacy");
+                        fileContent = await FileSystem.readAsStringAsync(
+                            file.uri,
+                            {
+                                encoding: "base64",
+                            }
+                        );
+                    }
 
                     const fileName =
                         file.name ||
@@ -792,7 +941,9 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                             fileContent
                     );
 
-                    console.log(`✅ Added ${fieldName}`);
+                    console.log(
+                        `✅ Added ${fieldName} (${fileName}, ${fileType})`
+                    );
                     return true;
                 } catch (error) {
                     console.error(`❌ Error reading file ${fieldName}:`, error);
@@ -937,7 +1088,7 @@ const CompleteEmployeeProfileScreen = ({ navigation }) => {
                 const newBankDetails = {
                     bankName: r.bankDetails.bankName || "",
                     accountNumber: r.bankDetails.accountNumber || "",
-                    ifsc: r.bankDetails.IFSC || "",
+                    ifsc: r.bankDetails.ifsc || "",
                     branchName: r.bankDetails.branchName || "",
                 };
 

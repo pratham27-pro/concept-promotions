@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import React from "react";
+import React, { useEffect } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -45,16 +45,29 @@ const PhotoPicker = ({
                 return;
             }
 
+            // ✅ UPDATED: Request base64 data along with the image
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: allowEditing,
                 aspect: shape === "circle" ? [1, 1] : [4, 3],
                 quality: quality,
+                base64: true, // ✅ Include base64 data
             });
 
-            if (!result.canceled) {
+            if (!result.canceled && result.assets[0]) {
                 setImageError(false);
-                onPhotoSelect(result.assets[0]);
+
+                // ✅ Pass complete asset data including base64
+                const asset = result.assets[0];
+                onPhotoSelect({
+                    uri: asset.uri,
+                    base64: asset.base64, // ✅ Include base64 for upload
+                    name: `photo_${Date.now()}.jpg`,
+                    fileName: `photo_${Date.now()}.jpg`,
+                    mimeType: "image/jpeg",
+                    type: "image/jpeg",
+                    fromBackend: false, // ✅ Mark as new upload
+                });
             }
         } catch (error) {
             console.error("Error picking photo:", error);
@@ -109,6 +122,19 @@ const PhotoPicker = ({
 
     const imageUri = getImageUri();
     const hasPhoto = !!imageUri;
+
+    useEffect(() => {
+        console.log("📸 PhotoPicker State:", {
+            hasPhoto: !!photo,
+            photoType: typeof photo,
+            isString: typeof photo === "string",
+            hasUri: photo?.uri ? true : false,
+            uriType: typeof photo?.uri,
+            uriPreview: photo?.uri?.substring(0, 100) || "no uri",
+            imageUri,
+            hasImageUri: !!imageUri,
+        });
+    }, [photo, imageUri]);
 
     return (
         <View style={[styles.container, style]}>
