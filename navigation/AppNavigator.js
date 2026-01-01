@@ -16,6 +16,10 @@ import EmployeeTabNavigator from "../navigation/employee/EmployeeTabNavigator";
 import RetailerTabNavigator from "../navigation/retailer/RetailerTabNavigator";
 import ClientStackNavigator from "../navigation/client/ClientStackNavigator";
 
+// ✅ Import STACK Navigators (not Tab Navigators)
+import EmployeeStackNavigator from "./employee/EmployeeStackNavigator";
+import RetailerStackNavigator from "./retailer/RetailerStackNavigator";
+
 const Stack = createStackNavigator();
 
 const AppNavigator = () => {
@@ -57,14 +61,14 @@ const AppNavigator = () => {
                 <>
                     {userRole === "employee" && (
                         <Stack.Screen
-                            name="EmployeeTabs"
-                            component={EmployeeTabNavigator} // ✅ Tab Navigator instead of Dashboard
+                            name="EmployeeStack" // ✅ Changed name
+                            component={EmployeeStackNavigator} // ✅ Changed component
                         />
                     )}
                     {userRole === "retailer" && (
                         <Stack.Screen
-                            name="RetailerTabs"
-                            component={RetailerTabNavigator} // ✅ Tab Navigator instead of Dashboard
+                            name="RetailerStack"
+                            component={RetailerStackNavigator} // ✅ Tab Navigator instead of Dashboard
                         />
                     )}
                     {userRole === "client" && (

@@ -1,14 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Image,
     Platform,
     ScrollView,
     StyleSheet,
@@ -19,20 +17,22 @@ import {
 } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as RootNavigation from "../../navigation/RootNavigation";
 
 import PennyTransferModal from "../../components/PennyTransferModal";
 import SuccessModal from "../../components/SuccessModal";
 import DatePicker from "../../components/common/DatePicker";
+import FileUpload from "../../components/common/FileUpload";
 import Header from "../../components/common/Header";
 import PhotoPicker from "../../components/common/PhotoPicker";
 import TermsAndConditions from "../../components/data/TermsAndConditions";
 import { bankOptions, stateOptions } from "../../components/data/common";
-import FileUpload from "../../components/common/FileUpload";
+import { useAuth } from "../../context/AuthContext";
 
 const API_BASE_URL = "https://deployed-site-o2d3.onrender.com/api";
 
 const CreateRetailerProfileScreen = ({ navigation }) => {
+    const { markProfileComplete, refreshProfile } = useAuth(); // ✅ Get these from context
+
     // Loading & Profile States
     const [loading, setLoading] = useState(true);
     const [profileExists, setProfileExists] = useState(false);
@@ -935,10 +935,9 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 body: formData,
             });
 
-            console.log("📥 Response status:", response.status);
+            // console.log("📥 Response status:", response.status);
 
             const responseText = await response.text();
-            console.log("📄 Response:", responseText.substring(0, 200));
 
             let data;
             try {
@@ -1076,9 +1075,12 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         }
     };
 
-    const handleSuccessClose = () => {
+    const handleSuccessClose = async () => {
         setShowSuccessModal(false);
-        RootNavigation.resetToRetailerHome();
+        await markProfileComplete();
+        await refreshProfile();
+
+        navigation.replace("RetailerTabs");
     };
 
     if (loading) {

@@ -2,8 +2,9 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import CampaignDetailsScreen from "../../screens/retailer/CampaignDetailsScreen";
 import SubmitReportScreen from "../../screens/retailer/SubmitReportScreen";
-import UpdateProfileScreen from "../../screens/retailer/UpdateProfileScreen";
 import RetailerTabNavigator from "./RetailerTabNavigator";
+import CreateRetailerProfileScreen from "../../screens/retailer/CreateRetailerProfileScreen";
+import RetailerProfileScreen from "../../screens/retailer/ProfileScreen";
 const Stack = createNativeStackNavigator();
 
 const RetailerStackNavigator = () => {
@@ -24,7 +25,11 @@ const RetailerStackNavigator = () => {
             <Stack.Screen name="SubmitReport" component={SubmitReportScreen} />
             <Stack.Screen
                 name="UpdateProfile"
-                component={UpdateProfileScreen}
+                component={RetailerProfileScreen}
+            />
+            <Stack.Screen
+                name="CompleteRetailerProfile"
+                component={CreateRetailerProfileScreen}
             />
         </Stack.Navigator>
     );

@@ -1,9 +1,9 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+import CreateEmployeeProfileScreen from "../../screens/employee/CreateEmployeeProfileScreen";
 import EmployeeCampaignDetailsScreen from "../../screens/employee/EmployeeCampaignDetailsScreen";
-import EmployeeTabNavigator from "./EmployeeTabNavigator";
 import EmployeeSubmitReportScreen from "../../screens/employee/EmployeeSubmitReportScreen";
-import UpdateEmployeeProfileScreen from "../../screens/employee/UpdateEmployeeProfileScreen";
+import EmployeeTabNavigator from "./EmployeeTabNavigator";
 // EmployeeSubmitReport will be created later
 
 const Stack = createNativeStackNavigator();
@@ -29,8 +29,8 @@ const EmployeeStackNavigator = () => {
                 component={EmployeeSubmitReportScreen}
             />
             <Stack.Screen
-                name="UpdateEmployeeProfile"
-                component={UpdateEmployeeProfileScreen}
+                name="CompleteEmployeeProfile"
+                component={CreateEmployeeProfileScreen}
             />
         </Stack.Navigator>
     );

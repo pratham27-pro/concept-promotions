@@ -23,27 +23,27 @@ export function resetRoot(name) {
     }
 }
 
-export function resetToRetailerHome() {
-    if (navigationRef.isReady()) {
-        navigationRef.reset({
-            index: 0,
-            routes: [
-                {
-                    name: "RetailerStack", // MUST match RootNavigator
-                    state: {
-                        index: 0,
-                        routes: [
-                            {
-                                name: "RetailerTabs",
-                                state: {
-                                    index: 0,
-                                    routes: [{ name: "Home" }],
-                                },
-                            },
-                        ],
-                    },
-                },
-            ],
-        });
-    }
-}
+// export function resetToRetailerHome() {
+//     if (navigationRef.isReady()) {
+//         navigationRef.reset({
+//             index: 0,
+//             routes: [
+//                 {
+//                     name: "RetailerStack", // MUST match RootNavigator
+//                     state: {
+//                         index: 0,
+//                         routes: [
+//                             {
+//                                 name: "RetailerTabs",
+//                                 state: {
+//                                     index: 0,
+//                                     routes: [{ name: "Home" }],
+//                                 },
+//                             },
+//                         ],
+//                     },
+//                 },
+//             ],
+//         });
+//     }
+// }

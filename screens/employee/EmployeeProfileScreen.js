@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
@@ -30,6 +30,8 @@ const EmployeeProfileScreen = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [personPhotoUri, setPersonPhotoUri] = useState(null);
+
+    const navigation = useNavigation();
 
     // Fetch employee profile on mount and when screen is focused
     useFocusEffect(
@@ -63,12 +65,28 @@ const EmployeeProfileScreen = () => {
             if (response.ok && responseData) {
                 const data = responseData.employee || responseData;
 
+                console.log("📋 Employee data keys:", Object.keys(data));
+                console.log(
+                    "📋 Files object:",
+                    data.files ? "exists" : "missing"
+                );
+
+                // ✅ Check if files object has personPhoto
+                if (data.files?.personPhoto) {
+                    console.log("✅ Person photo found in files object");
+                    await fetchPersonPhotoFromFiles(
+                        token,
+                        data.files.personPhoto
+                    );
+                } else {
+                    console.log("ℹ️ No person photo in files object");
+                    // Try document endpoint as fallback
+                    await fetchPersonPhoto(token);
+                }
+
                 // Calculate profile completion
                 const completion = calculateProfileCompletion(data);
                 setEmployee({ ...data, profileCompletion: completion });
-
-                // Fetch person photo if it exists
-                await fetchPersonPhoto(token);
             } else {
                 throw new Error(
                     responseData.message || "Failed to fetch profile"
@@ -82,8 +100,163 @@ const EmployeeProfileScreen = () => {
         }
     };
 
+    const fetchPersonPhotoFromFiles = async (token, photoData) => {
+        try {
+            console.log("🔍 Processing person photo from files object");
+
+            // ✅ Check if photoData is an object with data property
+            if (photoData && typeof photoData === "object" && photoData.data) {
+                console.log("✅ Photo data found in object");
+                console.log("📸 Content type:", photoData.contentType);
+                console.log(
+                    "📸 Data preview:",
+                    photoData.data.substring(0, 50)
+                );
+
+                let base64Content = photoData.data;
+
+                // ✅ DETECT AND FIX DOUBLE-ENCODING
+                if (base64Content?.startsWith("LzlqLz")) {
+                    console.log(
+                        `🔧 Detected double-encoded image, decoding...`
+                    );
+                    try {
+                        const decodedContent = atob(base64Content);
+
+                        if (
+                            decodedContent.startsWith("/9j/") ||
+                            decodedContent.startsWith("iVBOR")
+                        ) {
+                            base64Content = decodedContent;
+                            console.log(`✅ Successfully decoded`);
+                        }
+                    } catch (decodeError) {
+                        console.error(`❌ Failed to decode:`, decodeError);
+                    }
+                }
+
+                // ✅ Detect image type and reconstruct with correct MIME
+                const isJPEG = base64Content?.startsWith("/9j/");
+                const isPNG = base64Content?.startsWith("iVBOR");
+
+                let mimeType = photoData.contentType || "image/jpeg";
+
+                // Override MIME type if detected format doesn't match
+                if (isPNG && !mimeType.includes("png")) {
+                    mimeType = "image/png";
+                    console.log("🔧 Corrected MIME type to image/png");
+                } else if (isJPEG && !mimeType.includes("jpeg")) {
+                    mimeType = "image/jpeg";
+                    console.log("🔧 Corrected MIME type to image/jpeg");
+                }
+
+                const base64Data = `data:${mimeType};base64,${base64Content}`;
+
+                console.log(`✅ Person photo loaded from files object`);
+                console.log(`📸 Final MIME: ${mimeType}`);
+                console.log(
+                    `📸 Data URI preview: ${base64Data.substring(0, 50)}...`
+                );
+
+                setPersonPhotoUri(base64Data);
+                return;
+            }
+
+            // ✅ If photoData is a string (URL or path)
+            if (typeof photoData === "string") {
+                console.log(
+                    "📸 Photo data is a string:",
+                    photoData.substring(0, 50)
+                );
+
+                // If it's already a data URI
+                if (photoData.startsWith("data:")) {
+                    console.log("✅ Already a data URI");
+                    setPersonPhotoUri(photoData);
+                    return;
+                }
+
+                // If it's a URL
+                if (photoData.startsWith("http")) {
+                    console.log("✅ Photo is a URL");
+                    setPersonPhotoUri(photoData);
+                    return;
+                }
+
+                // Otherwise try to fetch it
+                console.log("🔍 Attempting to fetch from path");
+                const endpoint = photoData.startsWith("/")
+                    ? `${API_BASE_URL}${photoData}`
+                    : `${API_BASE_URL}/employee/files/${photoData}`;
+
+                console.log("📥 Fetching from:", endpoint);
+
+                const response = await fetch(endpoint, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const reader = new FileReader();
+
+                    reader.onloadend = () => {
+                        let base64Data = reader.result;
+
+                        if (!base64Data || !base64Data.startsWith("data:")) {
+                            console.log("❌ Invalid data URI");
+                            return;
+                        }
+
+                        let base64Content = base64Data.split(",")[1];
+
+                        // Double-encoding fix
+                        if (base64Content?.startsWith("LzlqLz")) {
+                            try {
+                                const decodedContent = atob(base64Content);
+                                if (
+                                    decodedContent.startsWith("/9j/") ||
+                                    decodedContent.startsWith("iVBOR")
+                                ) {
+                                    base64Content = decodedContent;
+                                }
+                            } catch (decodeError) {
+                                console.error(
+                                    `❌ Failed to decode:`,
+                                    decodeError
+                                );
+                            }
+                        }
+
+                        const isJPEG = base64Content?.startsWith("/9j/");
+                        const isPNG = base64Content?.startsWith("iVBOR");
+
+                        if (isPNG) {
+                            base64Data = `data:image/png;base64,${base64Content}`;
+                        } else if (isJPEG) {
+                            base64Data = `data:image/jpeg;base64,${base64Content}`;
+                        }
+
+                        setPersonPhotoUri(base64Data);
+                    };
+
+                    reader.readAsDataURL(blob);
+                }
+            }
+        } catch (error) {
+            console.log(
+                "❌ Error fetching person photo from files:",
+                error.message
+            );
+            console.error("Full error:", error);
+        }
+    };
+
     const fetchPersonPhoto = async (token) => {
         try {
+            console.log("🔍 Trying document endpoint as fallback...");
+
             const response = await fetch(
                 `${API_BASE_URL}/employee/employee/document/personPhoto`,
                 {
@@ -93,16 +266,69 @@ const EmployeeProfileScreen = () => {
                 }
             );
 
+            console.log("📸 Document endpoint response:", response.status);
+
             if (response.ok) {
                 const blob = await response.blob();
                 const reader = new FileReader();
+
                 reader.onloadend = () => {
-                    setPersonPhotoUri(reader.result);
+                    let base64Data = reader.result;
+
+                    if (!base64Data || !base64Data.startsWith("data:")) {
+                        console.log("❌ Invalid data URI");
+                        return;
+                    }
+
+                    let base64Content = base64Data.split(",")[1];
+
+                    // Double-encoding fix
+                    if (base64Content?.startsWith("LzlqLz")) {
+                        console.log(
+                            `🔧 Detected double-encoded image, decoding...`
+                        );
+                        try {
+                            const decodedContent = atob(base64Content);
+
+                            if (
+                                decodedContent.startsWith("/9j/") ||
+                                decodedContent.startsWith("iVBOR")
+                            ) {
+                                base64Content = decodedContent;
+                                console.log(`✅ Successfully decoded`);
+                            }
+                        } catch (decodeError) {
+                            console.error(`❌ Failed to decode:`, decodeError);
+                        }
+                    }
+
+                    const isJPEG = base64Content?.startsWith("/9j/");
+                    const isPNG = base64Content?.startsWith("iVBOR");
+
+                    if (isPNG) {
+                        base64Data = `data:image/png;base64,${base64Content}`;
+                    } else if (isJPEG) {
+                        base64Data = `data:image/jpeg;base64,${base64Content}`;
+                    } else {
+                        console.warn(`⚠️ Unknown image format`);
+                    }
+
+                    console.log(
+                        `✅ Person photo loaded from document endpoint`
+                    );
+                    setPersonPhotoUri(base64Data);
                 };
+
+                reader.onerror = (error) => {
+                    console.error("❌ FileReader error:", error);
+                };
+
                 reader.readAsDataURL(blob);
+            } else {
+                console.log("ℹ️ No person photo found at document endpoint");
             }
         } catch (error) {
-            console.log("No person photo found");
+            console.log("❌ Error with document endpoint:", error.message);
         }
     };
 
@@ -150,7 +376,8 @@ const EmployeeProfileScreen = () => {
     };
 
     const handleUpdateProfile = () => {
-        RootNavigation.navigate("CompleteEmployeeProfile");
+        console.log("Update profile button clicked!");
+        navigation.navigate("CompleteEmployeeProfile");
     };
 
     const handleLogout = () => {
@@ -248,13 +475,26 @@ const EmployeeProfileScreen = () => {
             >
                 {/* Profile Card */}
                 <View style={styles.profileCard}>
-                    {/* Profile Photo */}
-                    <View style={styles.photoContainer}>
+                    {/* Profile Photo - Tap to Edit */}
+                    <TouchableOpacity
+                        style={styles.photoContainer}
+                        onPress={handleUpdateProfile}
+                        activeOpacity={0.8}
+                    >
                         {personPhotoUri ? (
-                            <Image
-                                source={{ uri: personPhotoUri }}
-                                style={styles.profilePhoto}
-                            />
+                            <>
+                                <Image
+                                    source={{ uri: personPhotoUri }}
+                                    style={styles.profilePhoto}
+                                />
+                                <View style={styles.editBadge}>
+                                    <Ionicons
+                                        name="camera"
+                                        size={16}
+                                        color="#fff"
+                                    />
+                                </View>
+                            </>
                         ) : (
                             <View style={styles.photoPlaceholder}>
                                 <Ionicons
@@ -262,9 +502,12 @@ const EmployeeProfileScreen = () => {
                                     size={60}
                                     color="#999"
                                 />
+                                <Text style={styles.addPhotoText}>
+                                    Tap to add photo
+                                </Text>
                             </View>
                         )}
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Employee Info */}
                     <View style={styles.infoContainer}>
@@ -492,76 +735,6 @@ const EmployeeProfileScreen = () => {
 
                 {/* Options Container */}
                 <View style={styles.optionsContainer}>
-                    {/* View Documents */}
-                    {employee.employeeType === "Permanent" && (
-                        <TouchableOpacity
-                            style={styles.optionItem}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.optionLeft}>
-                                <Ionicons
-                                    name="document-text-outline"
-                                    size={24}
-                                    color="#007AFF"
-                                />
-                                <Text style={styles.optionText}>
-                                    View Documents
-                                </Text>
-                            </View>
-                            <Ionicons
-                                name="chevron-forward"
-                                size={20}
-                                color="#999"
-                            />
-                        </TouchableOpacity>
-                    )}
-
-                    {/* Work Experience */}
-                    {employee.employeeType === "Permanent" &&
-                        employee.experiences?.length > 0 && (
-                            <TouchableOpacity
-                                style={styles.optionItem}
-                                activeOpacity={0.7}
-                            >
-                                <View style={styles.optionLeft}>
-                                    <Ionicons
-                                        name="briefcase-outline"
-                                        size={24}
-                                        color="#007AFF"
-                                    />
-                                    <Text style={styles.optionText}>
-                                        Work Experience (
-                                        {employee.experiences.length})
-                                    </Text>
-                                </View>
-                                <Ionicons
-                                    name="chevron-forward"
-                                    size={20}
-                                    color="#999"
-                                />
-                            </TouchableOpacity>
-                        )}
-
-                    {/* Settings */}
-                    <TouchableOpacity
-                        style={styles.optionItem}
-                        activeOpacity={0.7}
-                    >
-                        <View style={styles.optionLeft}>
-                            <Ionicons
-                                name="settings-outline"
-                                size={24}
-                                color="#007AFF"
-                            />
-                            <Text style={styles.optionText}>Settings</Text>
-                        </View>
-                        <Ionicons
-                            name="chevron-forward"
-                            size={20}
-                            color="#999"
-                        />
-                    </TouchableOpacity>
-
                     {/* Logout */}
                     <TouchableOpacity
                         style={[styles.optionItem, styles.logoutOption]}
@@ -619,6 +792,7 @@ const styles = StyleSheet.create({
     photoContainer: {
         alignSelf: "center",
         marginBottom: 20,
+        position: "relative",
     },
     profilePhoto: {
         width: 120,
@@ -636,6 +810,25 @@ const styles = StyleSheet.create({
         alignItems: "center",
         borderWidth: 4,
         borderColor: "#007AFF",
+    },
+    editBadge: {
+        position: "absolute",
+        bottom: 5,
+        right: 5,
+        backgroundColor: "#007AFF",
+        borderRadius: 15,
+        width: 30,
+        height: 30,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: "#fff",
+    },
+    addPhotoText: {
+        fontSize: 12,
+        color: "#999",
+        marginTop: 8,
+        textAlign: "center",
     },
     infoContainer: {
         alignItems: "center",

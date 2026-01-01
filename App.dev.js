@@ -1,27 +1,26 @@
 // App.dev.js - FOR DEVELOPMENT ONLY
-import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { NavigationContainer } from "@react-navigation/native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { useState } from "react";
 import {
-    View,
+    ScrollView,
+    StyleSheet,
     Text,
     TouchableOpacity,
-    StyleSheet,
-    ScrollView,
+    View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider } from "./context/AuthContext";
 import AppNavigator from "./navigation/AppNavigator"; // ✅ Import AppNavigator
 
 // Import all your screens
 import LoginScreen from "./screens/auth/LoginScreen";
+import ClientHomeScreen from "./screens/client/ClientHomeScreen";
 import CreateEmployeeProfileScreen from "./screens/employee/CreateEmployeeProfileScreen";
 import EmployeeDashboardScreen from "./screens/employee/EmployeeDashboardScreen";
 import CreateRetailerProfileScreen from "./screens/retailer/CreateRetailerProfileScreen";
 import RetailerDashboardScreen from "./screens/retailer/RetailerDashboardScreen";
-import ClientHomeScreen from "./screens/client/ClientHomeScreen";
-import UpdateEmployeeProfileScreen from "./screens/employee/UpdateEmployeeProfileScreen"; // Add if you want to test it
 
 const DevScreenSelector = () => {
     const [selectedScreen, setSelectedScreen] = useState(null);
@@ -51,12 +50,6 @@ const DevScreenSelector = () => {
             component: EmployeeDashboardScreen,
             icon: "briefcase",
             color: "#4CAF50",
-        },
-        {
-            name: "Update Employee Profile",
-            component: UpdateEmployeeProfileScreen,
-            icon: "create",
-            color: "#607D8B",
         },
         {
             name: "Complete Retailer Profile",
