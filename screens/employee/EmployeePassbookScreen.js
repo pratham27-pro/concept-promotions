@@ -1,721 +1,1203 @@
-import React, { useState, useEffect } from "react";
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    TextInput,
-    Image,
-    Platform,
-    FlatList,
-    ActivityIndicator,
-} from "react-native";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import * as RootNavigation from "../../navigation/RootNavigation";
+import { StatusBar } from "expo-status-bar";
+import { useCallback, useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Header from "../../components/common/Header";
+import { commonPassbookStyles } from "../../components/styles/passbookStyles";
 
-const PassbookScreen = () => {
-    // Mock data - will be fetched from DB
-    const [employee] = useState({
-        name: "Hari Kumar",
-        photo: null,
-        totalEarnings: 125000,
-        pendingPayments: 15000,
-    });
+const API_BASE_URL = "https://conceptpromotions.in/api";
 
-    const [searchQuery, setSearchQuery] = useState("");
+const EmployeePassbookScreen = () => {
+    // Employee Info
+    const [employeeInfo, setEmployeeInfo] = useState(null);
+
+    // Employee-Retailer Mappings
+    const [employeeRetailerMappings, setEmployeeRetailerMappings] = useState(
+        []
+    );
+    const [retailerOptions, setRetailerOptions] = useState([]);
+
+    // Filters
+    const [selectedRetailer, setSelectedRetailer] = useState(null);
+    const [selectedCampaign, setSelectedCampaign] = useState(null);
+    const [fromDate, setFromDate] = useState(null);
+    const [toDate, setToDate] = useState(null);
+    const [showFromDatePicker, setShowFromDatePicker] = useState(false);
+    const [showToDatePicker, setShowToDatePicker] = useState(false);
+
+    // Passbook Data
+    const [passbookData, setPassbookData] = useState(null);
+    const [displayedCampaigns, setDisplayedCampaigns] = useState([]);
+    const [campaignOptions, setCampaignOptions] = useState([]);
+
+    // UI States
     const [showFilters, setShowFilters] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [expandedCampaigns, setExpandedCampaigns] = useState({});
+    const [showRetailerSelector, setShowRetailerSelector] = useState(false);
 
-    // Pagination states
-    const [transactions, setTransactions] = useState([]);
-    const [page, setPage] = useState(1);
-    const [loading, setLoading] = useState(false);
-    const [hasMore, setHasMore] = useState(true);
+    // Fetch data on mount
+    useFocusEffect(
+        useCallback(() => {
+            fetchEmployeeInfo();
+        }, [])
+    );
 
-    // Mock all transactions data (simulating API)
-    const allMockTransactions = [
-        {
-            id: "1",
-            type: "credit",
-            amount: 5000,
-            date: "2025-11-15",
-            time: "10:30 AM",
-            campaignName: "Summer Sale Campaign",
-            status: "completed",
-            transactionId: "TXN123456789",
-        },
-        {
-            id: "2",
-            type: "credit",
-            amount: 8000,
-            date: "2025-11-10",
-            time: "02:15 PM",
-            campaignName: "Festive Diwali Offer",
-            status: "completed",
-            transactionId: "TXN123456788",
-        },
-        {
-            id: "3",
-            type: "pending",
-            amount: 15000,
-            date: "2025-11-18",
-            time: "Pending",
-            campaignName: "Winter Collection",
-            status: "pending",
-            transactionId: "TXN123456790",
-        },
-        {
-            id: "4",
-            type: "credit",
-            amount: 3500,
-            date: "2025-11-05",
-            time: "11:45 AM",
-            campaignName: "Flash Sale",
-            status: "completed",
-            transactionId: "TXN123456787",
-        },
-        {
-            id: "5",
-            type: "credit",
-            amount: 12000,
-            date: "2025-10-28",
-            time: "04:20 PM",
-            campaignName: "Mega Discount Days",
-            status: "completed",
-            transactionId: "TXN123456786",
-        },
-        {
-            id: "6",
-            type: "credit",
-            amount: 7500,
-            date: "2025-10-20",
-            time: "09:15 AM",
-            campaignName: "Back to School",
-            status: "completed",
-            transactionId: "TXN123456785",
-        },
-        {
-            id: "7",
-            type: "credit",
-            amount: 4200,
-            date: "2025-10-15",
-            time: "03:30 PM",
-            campaignName: "Weekend Bonanza",
-            status: "completed",
-            transactionId: "TXN123456784",
-        },
-        {
-            id: "8",
-            type: "pending",
-            amount: 9000,
-            date: "2025-11-20",
-            time: "Pending",
-            campaignName: "Black Friday Sale",
-            status: "pending",
-            transactionId: "TXN123456791",
-        },
-        {
-            id: "9",
-            type: "credit",
-            amount: 6300,
-            date: "2025-10-08",
-            time: "01:45 PM",
-            campaignName: "Clearance Sale",
-            status: "completed",
-            transactionId: "TXN123456783",
-        },
-        {
-            id: "10",
-            type: "credit",
-            amount: 11000,
-            date: "2025-10-01",
-            time: "10:00 AM",
-            campaignName: "New Launch Campaign",
-            status: "completed",
-            transactionId: "TXN123456782",
-        },
-        {
-            id: "11",
-            type: "credit",
-            amount: 5500,
-            date: "2025-09-25",
-            time: "02:20 PM",
-            campaignName: "Summer Clearance",
-            status: "completed",
-            transactionId: "TXN123456781",
-        },
-        {
-            id: "12",
-            type: "credit",
-            amount: 8800,
-            date: "2025-09-18",
-            time: "11:30 AM",
-            campaignName: "Festival Discount",
-            status: "completed",
-            transactionId: "TXN123456780",
-        },
-    ];
-
-    // Load initial transactions
-    useEffect(() => {
-        loadTransactions(1);
-    }, []);
-
-    // Simulate API call with pagination
-    const loadTransactions = async (pageNumber) => {
-        if (loading) return;
-
-        setLoading(true);
-
+    // FETCH EMPLOYEE INFO
+    const fetchEmployeeInfo = async () => {
         try {
-            // Simulate API delay
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            setLoading(true);
+            const token = await AsyncStorage.getItem("userToken");
 
-            const itemsPerPage = 5;
-            const startIndex = (pageNumber - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-
-            const newTransactions = allMockTransactions.slice(
-                startIndex,
-                endIndex
-            );
-
-            if (pageNumber === 1) {
-                setTransactions(newTransactions);
-            } else {
-                setTransactions((prev) => [...prev, ...newTransactions]);
+            if (!token) {
+                Alert.alert("Error", "Please login again");
+                return;
             }
 
-            // Check if there are more items
-            setHasMore(endIndex < allMockTransactions.length);
-            setPage(pageNumber);
-        } catch (error) {
-            console.error("Error loading transactions:", error);
+            const response = await fetch(`${API_BASE_URL}/employee/profile`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch employee info");
+            }
+
+            const data = await response.json();
+            setEmployeeInfo(data.employee);
+
+            // Fetch employee-retailer mappings
+            await fetchEmployeeRetailerMappings(data.employee._id, token);
+        } catch (err) {
+            console.error("Error fetching employee info:", err);
+            Alert.alert("Error", "Failed to load employee information");
         } finally {
             setLoading(false);
         }
     };
 
-    // Load more transactions when reaching end
-    const handleLoadMore = () => {
-        if (!loading && hasMore) {
-            loadTransactions(page + 1);
+    // FETCH EMPLOYEE-RETAILER MAPPINGS
+    const fetchEmployeeRetailerMappings = async (employeeId, token) => {
+        try {
+            // Fetch all active campaigns
+            const campaignsRes = await fetch(
+                `${API_BASE_URL}/admin/campaigns`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+
+            const campaignsData = await campaignsRes.json();
+            const activeCampaigns = (campaignsData.campaigns || []).filter(
+                (c) => c.isActive === true
+            );
+
+            console.log(`📋 Found ${activeCampaigns.length} active campaigns`);
+
+            const allMappings = [];
+
+            // For each campaign, fetch employee-retailer mapping
+            for (const campaign of activeCampaigns) {
+                try {
+                    const mappingRes = await fetch(
+                        `${API_BASE_URL}/admin/campaign/${campaign._id}/employee-retailer-mapping`,
+                        {
+                            headers: { Authorization: `Bearer ${token}` },
+                        }
+                    );
+
+                    // ✅ Check if response is OK
+                    if (!mappingRes.ok) {
+                        console.warn(
+                            `⚠️ Failed to fetch mapping for campaign ${campaign._id}: ${mappingRes.status}`
+                        );
+                        continue; // Skip this campaign
+                    }
+
+                    const mappingData = await mappingRes.json();
+
+                    // ✅ Check if mappingData has employees array
+                    if (
+                        !mappingData ||
+                        !mappingData.employees ||
+                        !Array.isArray(mappingData.employees)
+                    ) {
+                        console.warn(
+                            `⚠️ Invalid mapping data structure for campaign ${campaign._id}`
+                        );
+                        continue; // Skip this campaign
+                    }
+
+                    const currentEmployee = mappingData.employees.find(
+                        (emp) => emp._id === employeeId || emp.id === employeeId
+                    );
+
+                    // ✅ Check if employee found and has retailers
+                    if (
+                        currentEmployee &&
+                        currentEmployee.retailers &&
+                        Array.isArray(currentEmployee.retailers)
+                    ) {
+                        currentEmployee.retailers.forEach((retailer) => {
+                            allMappings.push({
+                                campaignId: campaign._id,
+                                campaignName: campaign.name,
+                                campaignData: campaign,
+                                retailerId: retailer._id || retailer.id,
+                                retailerData: retailer,
+                            });
+                        });
+                        console.log(
+                            `✅ Campaign ${campaign.name}: Found ${currentEmployee.retailers.length} retailers`
+                        );
+                    } else {
+                        console.log(
+                            `ℹ️ Campaign ${campaign.name}: No retailers assigned to this employee`
+                        );
+                    }
+                } catch (err) {
+                    console.error(
+                        `❌ Error fetching mapping for campaign ${campaign._id}:`,
+                        err.message
+                    );
+                    // Continue with other campaigns even if one fails
+                    continue;
+                }
+            }
+
+            console.log(`✅ Total mappings found: ${allMappings.length}`);
+
+            setEmployeeRetailerMappings(allMappings);
+
+            // Extract unique retailers
+            const uniqueRetailers = allMappings.reduce((acc, mapping) => {
+                if (!acc.find((r) => r.value === mapping.retailerId)) {
+                    acc.push({
+                        value: mapping.retailerId,
+                        label: `${mapping.retailerData.uniqueId || ""} - ${
+                            mapping.retailerData.shopDetails?.shopName || "N/A"
+                        }`,
+                        data: mapping.retailerData,
+                    });
+                }
+                return acc;
+            }, []);
+
+            console.log(`✅ Unique retailers: ${uniqueRetailers.length}`);
+            setRetailerOptions(uniqueRetailers);
+
+            if (uniqueRetailers.length === 0) {
+                Alert.alert(
+                    "Info",
+                    "No retailers are currently assigned to you"
+                );
+            }
+        } catch (err) {
+            console.error("❌ Error fetching employee-retailer mappings:", err);
+            Alert.alert("Error", "Failed to load assigned retailers");
         }
     };
 
-    // Filter transactions based on search
-    const filteredTransactions = transactions.filter((transaction) => {
-        if (!searchQuery) return true;
+    // FETCH PASSBOOK DATA
+    useEffect(() => {
+        if (selectedRetailer) {
+            fetchPassbookData();
+        } else {
+            resetPassbookData();
+        }
+    }, [selectedRetailer]);
 
-        const query = searchQuery.toLowerCase();
-        return (
-            transaction.amount.toString().includes(query) ||
-            transaction.campaignName.toLowerCase().includes(query) ||
-            transaction.transactionId.toLowerCase().includes(query)
-        );
-    });
+    const fetchPassbookData = async () => {
+        if (!selectedRetailer) return;
 
-    const renderTransaction = ({ item }) => (
-        <TouchableOpacity style={styles.transactionCard}>
-            <View style={styles.transactionLeft}>
-                <View
-                    style={[
-                        styles.transactionIcon,
-                        item.type === "credit"
-                            ? styles.creditIcon
-                            : styles.pendingIcon,
-                    ]}
-                >
-                    <Ionicons
-                        name={
-                            item.type === "credit"
-                                ? "arrow-down"
-                                : "time-outline"
+        try {
+            const token = await AsyncStorage.getItem("userToken");
+            const params = new URLSearchParams();
+            params.append("retailerId", selectedRetailer.value);
+
+            const response = await fetch(
+                `${API_BASE_URL}/budgets/passbook?${params.toString()}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.data && data.data.length > 0) {
+                    const budgetRecord = data.data[0];
+
+                    // Filter campaigns: Only show campaigns where employee is assigned
+                    const assignedCampaignIds = employeeRetailerMappings
+                        .filter((m) => m.retailerId === selectedRetailer.value)
+                        .map((m) => m.campaignId);
+
+                    const filteredCampaigns = budgetRecord.campaigns.filter(
+                        (c) => assignedCampaignIds.includes(c.campaignId._id)
+                    );
+
+                    if (filteredCampaigns.length === 0) {
+                        Alert.alert(
+                            "Info",
+                            "No campaigns assigned to you for this retailer"
+                        );
+                        resetPassbookData();
+                        return;
+                    }
+
+                    setPassbookData({
+                        ...budgetRecord,
+                        campaigns: filteredCampaigns,
+                    });
+
+                    setDisplayedCampaigns(filteredCampaigns);
+
+                    // Set campaign options
+                    const campaignOpts = filteredCampaigns.map((c) => ({
+                        value: c.campaignId._id,
+                        label: c.campaignName,
+                        data: c.campaignId,
+                    }));
+                    setCampaignOptions(campaignOpts);
+                } else {
+                    resetPassbookData();
+                }
+            } else {
+                resetPassbookData();
+            }
+        } catch (error) {
+            console.error("Error fetching passbook:", error);
+            resetPassbookData();
+        }
+    };
+
+    const resetPassbookData = () => {
+        setPassbookData(null);
+        setDisplayedCampaigns([]);
+        setCampaignOptions([]);
+    };
+
+    // APPLY FILTERS
+    useEffect(() => {
+        if (passbookData) {
+            applyFilters();
+        }
+    }, [selectedCampaign, fromDate, toDate, passbookData]);
+
+    const applyFilters = () => {
+        if (!passbookData) return;
+
+        let filtered = [...passbookData.campaigns];
+
+        // Filter by Campaign first
+        if (selectedCampaign) {
+            filtered = filtered.filter(
+                (c) => c.campaignId._id === selectedCampaign.value
+            );
+        }
+
+        // ✅ Filter by Date Range (but keep campaigns even if no matching installments)
+        if (fromDate || toDate) {
+            filtered = filtered.map((campaign) => {
+                // Filter installments by date range
+                const filteredInstallments = campaign.installments.filter(
+                    (inst) => {
+                        // Parse date from dd/mm/yyyy or ISO format
+                        const instDateString = inst.dateOfInstallment;
+                        let instDate;
+
+                        if (instDateString.includes("/")) {
+                            const [day, month, year] =
+                                instDateString.split("/");
+                            instDate = new Date(`${year}-${month}-${day}`);
+                        } else {
+                            instDate = new Date(instDateString);
                         }
-                        size={24}
-                        color={item.type === "credit" ? "#28a745" : "#FFA500"}
-                    />
-                </View>
 
-                <View style={styles.transactionInfo}>
-                    <Text style={styles.transactionCampaign} numberOfLines={1}>
-                        {item.campaignName}
-                    </Text>
-                    <Text style={styles.transactionDate}>
-                        {item.date} • {item.time}
-                    </Text>
-                    <Text style={styles.transactionId}>
-                        ID: {item.transactionId}
-                    </Text>
-                </View>
-            </View>
+                        const from = fromDate ? new Date(fromDate) : null;
+                        const to = toDate ? new Date(toDate) : null;
 
-            <View style={styles.transactionRight}>
-                <Text
-                    style={[
-                        styles.transactionAmount,
-                        item.type === "credit"
-                            ? styles.creditAmount
-                            : styles.pendingAmount,
-                    ]}
-                >
-                    {item.type === "credit" ? "+" : ""}₹
-                    {item.amount.toLocaleString("en-IN")}
-                </Text>
-                <View
-                    style={[
-                        styles.statusBadge,
-                        item.status === "completed"
-                            ? styles.completedBadge
-                            : styles.pendingBadge,
-                    ]}
-                >
-                    <Text style={styles.statusText}>
-                        {item.status === "completed" ? "Completed" : "Pending"}
-                    </Text>
-                </View>
-            </View>
-        </TouchableOpacity>
-    );
+                        if (from) from.setHours(0, 0, 0, 0);
+                        if (to) to.setHours(23, 59, 59, 999);
+                        instDate.setHours(0, 0, 0, 0);
 
-    const renderHeader = () => (
-        <View style={styles.headerContent}>
-            {/* employee Info */}
-            <View style={styles.employeeInfo}>
-                {employee.photo ? (
-                    <Image
-                        source={{ uri: employee.photo }}
-                        style={styles.employeePhoto}
-                    />
-                ) : (
-                    <View style={styles.photoPlaceholder}>
-                        <Ionicons name="person" size={30} color="#999" />
-                    </View>
-                )}
-                <Text style={styles.employeeName}>{employee.name}</Text>
-            </View>
+                        if (from && to) {
+                            return instDate >= from && instDate <= to;
+                        } else if (from) {
+                            return instDate >= from;
+                        } else if (to) {
+                            return instDate <= to;
+                        }
+                        return true;
+                    }
+                );
 
-            {/* Earnings Cards */}
-            <View style={styles.earningsContainer}>
-                {/* Total Earnings */}
-                <TouchableOpacity style={styles.earningCard}>
-                    <LinearGradient
-                        colors={["#28a745", "#20c997"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.cardGradient}
-                    >
-                        <View style={styles.cardIcon}>
-                            <Ionicons name="wallet" size={28} color="#fff" />
-                        </View>
-                        <Text style={styles.cardLabel}>Total Earnings</Text>
-                        <Text style={styles.cardAmount}>
-                            ₹{employee.totalEarnings.toLocaleString("en-IN")}
-                        </Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+                // ✅ Recalculate paid and pending based on filtered installments
+                const filteredCPaid = filteredInstallments.reduce(
+                    (sum, inst) => sum + (inst.installmentAmount || 0),
+                    0
+                );
+                const filteredCPending = campaign.tca - filteredCPaid;
 
-                {/* Pending Payments */}
-                <TouchableOpacity style={styles.earningCard}>
-                    <LinearGradient
-                        colors={["#FFA500", "#FF8C00"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.cardGradient}
-                    >
-                        <View style={styles.cardIcon}>
-                            <Ionicons name="time" size={28} color="#fff" />
-                        </View>
-                        <Text style={styles.cardLabel}>Pending Payments</Text>
-                        <Text style={styles.cardAmount}>
-                            ₹{employee.pendingPayments.toLocaleString("en-IN")}
-                        </Text>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+                // ✅ Return campaign with filtered installments (even if empty)
+                return {
+                    ...campaign,
+                    installments: filteredInstallments,
+                    cPaid: filteredCPaid,
+                    cPending: filteredCPending,
+                };
+            });
+            // ✅ DON'T filter out campaigns with zero installments
+            // Remove this line: .filter((campaign) => campaign.installments.length > 0);
+        }
 
-            {/* Balance and History Section */}
-            <View style={styles.historySection}>
-                <Text style={styles.sectionTitle}>Balance and History</Text>
+        setDisplayedCampaigns(filtered);
+    };
 
-                {/* Search Bar */}
-                <View style={styles.searchContainer}>
-                    <View style={styles.searchInputWrapper}>
-                        <Ionicons name="search" size={20} color="#999" />
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Search by amount or campaign"
-                            placeholderTextColor="#999"
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                        />
-                        {searchQuery.length > 0 && (
-                            <TouchableOpacity
-                                onPress={() => setSearchQuery("")}
-                            >
-                                <Ionicons
-                                    name="close-circle"
-                                    size={20}
-                                    color="#999"
-                                />
-                            </TouchableOpacity>
-                        )}
-                    </View>
+    // CLEAR FILTERS
+    const handleClearFilters = () => {
+        setSelectedRetailer(null);
+        setSelectedCampaign(null);
+        setFromDate(null);
+        setToDate(null);
+        resetPassbookData();
+    };
 
-                    <TouchableOpacity
-                        style={styles.filterButton}
-                        onPress={() => setShowFilters(!showFilters)}
-                    >
-                        <Ionicons name="filter" size={20} color="#007AFF" />
-                    </TouchableOpacity>
-                </View>
+    // CALCULATE SUMMARY
+    const getFilteredSummary = () => {
+        if (!displayedCampaigns.length) {
+            return {
+                filteredTAR: 0,
+                filteredTAPaid: 0,
+                filteredTAPending: 0,
+            };
+        }
 
-                {/* Filter Options (placeholder for future) */}
-                {showFilters && (
-                    <View style={styles.filterOptions}>
-                        <Text style={styles.filterText}>
-                            Filters coming soon...
-                        </Text>
-                    </View>
-                )}
-            </View>
-        </View>
-    );
+        const filteredTAR = displayedCampaigns.reduce(
+            (sum, campaign) => sum + (campaign.tca || 0),
+            0
+        );
 
-    const renderFooter = () => {
-        if (!loading) return null;
+        const filteredTAPaid = displayedCampaigns.reduce(
+            (sum, campaign) => sum + (campaign.cPaid || 0),
+            0
+        );
+
+        const filteredTAPending = filteredTAR - filteredTAPaid;
+
+        return { filteredTAR, filteredTAPaid, filteredTAPending };
+    };
+
+    // TOGGLE CAMPAIGN EXPANSION
+    const toggleCampaignExpansion = (campaignId) => {
+        setExpandedCampaigns((prev) => ({
+            ...prev,
+            [campaignId]: !prev[campaignId],
+        }));
+    };
+
+    // REFRESH
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await fetchEmployeeInfo();
+        setRefreshing(false);
+    };
+
+    // RENDER CAMPAIGN CARD
+    const renderCampaignCard = ({ item: campaign, index }) => {
+        const isExpanded = expandedCampaigns[campaign._id];
+        const hasInstallments =
+            campaign.installments && campaign.installments.length > 0;
 
         return (
-            <View style={styles.loadingFooter}>
-                <ActivityIndicator size="small" color="#007AFF" />
-                <Text style={styles.loadingText}>
-                    Loading more transactions...
-                </Text>
+            <View
+                style={[
+                    styles.campaignCard,
+                    { marginTop: index === 0 ? 0 : 15 },
+                ]}
+            >
+                {/* Campaign Header */}
+                <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() =>
+                        hasInstallments && toggleCampaignExpansion(campaign._id)
+                    }
+                >
+                    <LinearGradient
+                        colors={["#ea6666ff", "#a24b4bff"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.campaignHeader}
+                    >
+                        <View style={styles.campaignHeaderLeft}>
+                            <View style={styles.campaignIconContainer}>
+                                <MaterialCommunityIcons
+                                    name="bullhorn"
+                                    size={24}
+                                    color="#fff"
+                                />
+                            </View>
+                            <View style={styles.campaignHeaderText}>
+                                <Text
+                                    style={styles.campaignName}
+                                    numberOfLines={1}
+                                >
+                                    {campaign.campaignName}
+                                </Text>
+                                <Text style={styles.campaignClient}>
+                                    {campaign.campaignId?.client || "N/A"}
+                                </Text>
+                            </View>
+                        </View>
+                        {hasInstallments && (
+                            <Ionicons
+                                name={
+                                    isExpanded ? "chevron-up" : "chevron-down"
+                                }
+                                size={24}
+                                color="#fff"
+                            />
+                        )}
+                    </LinearGradient>
+                </TouchableOpacity>
+
+                {/* Budget Summary Cards */}
+                <View style={styles.budgetCardsContainer}>
+                    <View style={[styles.budgetMiniCard, styles.totalCard]}>
+                        <MaterialCommunityIcons
+                            name="wallet"
+                            size={20}
+                            color="#667eea"
+                        />
+                        <Text style={styles.budgetMiniLabel}>Budget</Text>
+                        <Text
+                            style={[styles.budgetMiniValue, styles.totalValue]}
+                        >
+                            ₹{(campaign.tca || 0).toLocaleString("en-IN")}
+                        </Text>
+                    </View>
+
+                    <View style={[styles.budgetMiniCard, styles.paidCard]}>
+                        <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color="#10b981"
+                        />
+                        <Text style={styles.budgetMiniLabel}>Paid</Text>
+                        <Text
+                            style={[styles.budgetMiniValue, styles.paidValue]}
+                        >
+                            ₹{(campaign.cPaid || 0).toLocaleString("en-IN")}
+                        </Text>
+                    </View>
+
+                    <View style={[styles.budgetMiniCard, styles.pendingCard]}>
+                        <MaterialCommunityIcons
+                            name="clock-outline"
+                            size={20}
+                            color="#f59e0b"
+                        />
+                        <Text style={styles.budgetMiniLabel}>Pending</Text>
+                        <Text
+                            style={[
+                                styles.budgetMiniValue,
+                                styles.pendingValue,
+                            ]}
+                        >
+                            ₹{(campaign.cPending || 0).toLocaleString("en-IN")}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Installments - Collapsible */}
+                {isExpanded && hasInstallments && (
+                    <View style={styles.installmentsContainer}>
+                        <View style={styles.installmentsDivider} />
+                        <View style={styles.installmentsHeader}>
+                            <MaterialCommunityIcons
+                                name="format-list-bulleted"
+                                size={18}
+                                color="#667eea"
+                            />
+                            <Text style={styles.installmentsTitle}>
+                                Payment History ({campaign.installments.length})
+                            </Text>
+                        </View>
+
+                        {campaign.installments.map((inst, idx) => (
+                            <View
+                                key={inst._id}
+                                style={[
+                                    styles.installmentItem,
+                                    idx === campaign.installments.length - 1 &&
+                                        styles.lastInstallment,
+                                ]}
+                            >
+                                <View style={styles.installmentLeft}>
+                                    <View style={styles.installmentNumber}>
+                                        <Text
+                                            style={styles.installmentNumberText}
+                                        >
+                                            #{inst.installmentNo}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.installmentDetails}>
+                                        <View style={styles.installmentRow}>
+                                            <Ionicons
+                                                name="calendar-outline"
+                                                size={14}
+                                                color="#64748b"
+                                            />
+                                            <Text
+                                                style={styles.installmentDate}
+                                            >
+                                                {inst.dateOfInstallment}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.installmentRow}>
+                                            <MaterialCommunityIcons
+                                                name="bank-transfer"
+                                                size={14}
+                                                color="#64748b"
+                                            />
+                                            <Text style={styles.installmentUTR}>
+                                                {inst.utrNumber}
+                                            </Text>
+                                        </View>
+                                        {inst.remarks && (
+                                            <View style={styles.installmentRow}>
+                                                <Ionicons
+                                                    name="information-circle-outline"
+                                                    size={14}
+                                                    color="#64748b"
+                                                />
+                                                <Text
+                                                    style={
+                                                        styles.installmentRemarks
+                                                    }
+                                                    numberOfLines={2}
+                                                >
+                                                    {inst.remarks}
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </View>
+                                <View style={styles.installmentAmountContainer}>
+                                    <Text style={styles.installmentAmount}>
+                                        ₹
+                                        {inst.installmentAmount.toLocaleString(
+                                            "en-IN"
+                                        )}
+                                    </Text>
+                                    <View style={styles.successBadge}>
+                                        <Ionicons
+                                            name="checkmark"
+                                            size={12}
+                                            color="#10b981"
+                                        />
+                                    </View>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {!hasInstallments && (
+                    <View style={styles.noInstallmentsContainer}>
+                        <MaterialCommunityIcons
+                            name="inbox-outline"
+                            size={32}
+                            color="#cbd5e1"
+                        />
+                        <Text style={styles.noInstallmentsText}>
+                            {fromDate || toDate
+                                ? "No payments in this date range"
+                                : "No payments recorded yet"}
+                        </Text>
+                    </View>
+                )}
             </View>
         );
     };
 
-    const renderEmpty = () => (
-        <View style={styles.noTransactions}>
-            <Ionicons name="receipt-outline" size={60} color="#ccc" />
-            <Text style={styles.noTransactionsText}>No transactions found</Text>
+    // RENDER HEADER
+    const renderHeader = () => (
+        <View style={styles.headerContent}>
+            {/* Hero Section */}
+            <LinearGradient
+                colors={["#ea6666ff", "#a24b4bff"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroSection}
+            >
+                <View style={styles.heroHeader}>
+                    <View>
+                        <Text style={styles.heroGreeting}>
+                            Employee Passbook
+                        </Text>
+                        <Text style={styles.heroName}>
+                            {employeeInfo?.name || "Employee"}
+                        </Text>
+                        {employeeInfo?.employeeId && (
+                            <Text style={styles.heroEmployeeId}>
+                                ID: {employeeInfo.employeeId}
+                            </Text>
+                        )}
+                    </View>
+                    <TouchableOpacity
+                        style={styles.refreshButton}
+                        onPress={onRefresh}
+                    >
+                        <Ionicons name="refresh" size={20} color="#fff" />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Summary Card */}
+                {passbookData && (
+                    <View style={styles.totalBalanceCard}>
+                        <Text style={styles.balanceLabel}>
+                            {selectedRetailer?.data?.shopDetails?.shopName ||
+                                "Retailer"}
+                        </Text>
+                        <Text style={styles.balanceSubLabel}>
+                            {selectedRetailer?.data?.uniqueId || "N/A"}
+                        </Text>
+                        <View style={styles.balanceFooter}>
+                            <View style={styles.balanceItem}>
+                                <Text style={styles.balanceItemLabel}>
+                                    Total Budget
+                                </Text>
+                                <Text style={styles.balanceItemValueBlue}>
+                                    ₹
+                                    {getFilteredSummary().filteredTAR.toLocaleString(
+                                        "en-IN"
+                                    )}
+                                </Text>
+                            </View>
+                            <View style={styles.balanceDivider} />
+                            <View style={styles.balanceItem}>
+                                <Text style={styles.balanceItemLabel}>
+                                    Paid
+                                </Text>
+                                <Text style={styles.balanceItemValueGreen}>
+                                    ₹
+                                    {getFilteredSummary().filteredTAPaid.toLocaleString(
+                                        "en-IN"
+                                    )}
+                                </Text>
+                            </View>
+                            <View style={styles.balanceDivider} />
+                            <View style={styles.balanceItem}>
+                                <Text style={styles.balanceItemLabel}>
+                                    Pending
+                                </Text>
+                                <Text style={styles.balanceItemValueOrange}>
+                                    ₹
+                                    {getFilteredSummary().filteredTAPending.toLocaleString(
+                                        "en-IN"
+                                    )}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
+            </LinearGradient>
+
+            {/* Retailer Selector */}
+            <View style={styles.filtersSection}>
+                <Text style={styles.filterSectionTitle}>Select Retailer *</Text>
+                <TouchableOpacity
+                    style={styles.retailerSelectorButton}
+                    onPress={() =>
+                        setShowRetailerSelector(!showRetailerSelector)
+                    }
+                >
+                    <View style={styles.retailerSelectorLeft}>
+                        <MaterialCommunityIcons
+                            name="store"
+                            size={20}
+                            color="#667eea"
+                        />
+                        <Text style={styles.retailerSelectorText}>
+                            {selectedRetailer
+                                ? selectedRetailer.label
+                                : "Select a retailer"}
+                        </Text>
+                    </View>
+                    <Ionicons
+                        name={
+                            showRetailerSelector ? "chevron-up" : "chevron-down"
+                        }
+                        size={20}
+                        color="#667eea"
+                    />
+                </TouchableOpacity>
+
+                {showRetailerSelector && (
+                    <ScrollView style={styles.retailerList}>
+                        {retailerOptions.map((retailer) => (
+                            <TouchableOpacity
+                                key={retailer.value}
+                                style={[
+                                    styles.retailerItem,
+                                    selectedRetailer?.value ===
+                                        retailer.value &&
+                                        styles.retailerItemSelected,
+                                ]}
+                                onPress={() => {
+                                    setSelectedRetailer(retailer);
+                                    setShowRetailerSelector(false);
+                                    setSelectedCampaign(null);
+                                }}
+                            >
+                                <MaterialCommunityIcons
+                                    name="store-outline"
+                                    size={18}
+                                    color={
+                                        selectedRetailer?.value ===
+                                        retailer.value
+                                            ? "#667eea"
+                                            : "#64748b"
+                                    }
+                                />
+                                <Text
+                                    style={[
+                                        styles.retailerItemText,
+                                        selectedRetailer?.value ===
+                                            retailer.value &&
+                                            styles.retailerItemTextSelected,
+                                    ]}
+                                >
+                                    {retailer.label}
+                                </Text>
+                                {selectedRetailer?.value === retailer.value && (
+                                    <Ionicons
+                                        name="checkmark-circle"
+                                        size={20}
+                                        color="#667eea"
+                                    />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                        {retailerOptions.length === 0 && (
+                            <Text style={styles.noRetailersText}>
+                                No retailers assigned to you
+                            </Text>
+                        )}
+                    </ScrollView>
+                )}
+
+                {/* Additional Filters - Only show when retailer is selected */}
+                {selectedRetailer && (
+                    <>
+                        <Text style={styles.filterSectionTitle}>
+                            Optional Filters
+                        </Text>
+
+                        {/* Campaign Filter */}
+                        <View style={styles.filterGroup}>
+                            <Text style={styles.filterLabel}>
+                                <MaterialCommunityIcons
+                                    name="bullhorn-outline"
+                                    size={16}
+                                    color="#f14d4dff"
+                                />{" "}
+                                Campaign
+                            </Text>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.chipScrollContent}
+                            >
+                                <TouchableOpacity
+                                    style={[
+                                        styles.filterChip,
+                                        !selectedCampaign &&
+                                            styles.filterChipActive,
+                                    ]}
+                                    onPress={() => setSelectedCampaign(null)}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.filterChipText,
+                                            !selectedCampaign &&
+                                                styles.filterChipTextActive,
+                                        ]}
+                                    >
+                                        All
+                                    </Text>
+                                </TouchableOpacity>
+                                {campaignOptions.map((campaign) => (
+                                    <TouchableOpacity
+                                        key={campaign.value}
+                                        style={[
+                                            styles.filterChip,
+                                            selectedCampaign?.value ===
+                                                campaign.value &&
+                                                styles.filterChipActive,
+                                        ]}
+                                        onPress={() =>
+                                            setSelectedCampaign(campaign)
+                                        }
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.filterChipText,
+                                                selectedCampaign?.value ===
+                                                    campaign.value &&
+                                                    styles.filterChipTextActive,
+                                            ]}
+                                            numberOfLines={1}
+                                        >
+                                            {campaign.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+
+                        {/* Date Filters */}
+                        <View style={styles.filterGroup}>
+                            <Text style={styles.filterLabel}>
+                                <Ionicons
+                                    name="calendar-outline"
+                                    size={16}
+                                    color="#667eea"
+                                />{" "}
+                                Date Range
+                            </Text>
+                            <View style={styles.dateFilterRow}>
+                                <TouchableOpacity
+                                    style={styles.dateButton}
+                                    onPress={() => setShowFromDatePicker(true)}
+                                >
+                                    <Ionicons
+                                        name="calendar"
+                                        size={18}
+                                        color="#667eea"
+                                    />
+                                    <View
+                                        style={styles.dateButtonTextContainer}
+                                    >
+                                        <Text style={styles.dateButtonLabel}>
+                                            From
+                                        </Text>
+                                        <Text style={styles.dateButtonValue}>
+                                            {fromDate
+                                                ? fromDate.toLocaleDateString(
+                                                      "en-IN",
+                                                      {
+                                                          day: "2-digit",
+                                                          month: "short",
+                                                      }
+                                                  )
+                                                : "Select"}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <View style={styles.dateArrow}>
+                                    <Ionicons
+                                        name="arrow-forward"
+                                        size={16}
+                                        color="#94a3b8"
+                                    />
+                                </View>
+
+                                <TouchableOpacity
+                                    style={styles.dateButton}
+                                    onPress={() => setShowToDatePicker(true)}
+                                >
+                                    <Ionicons
+                                        name="calendar"
+                                        size={18}
+                                        color="#667eea"
+                                    />
+                                    <View
+                                        style={styles.dateButtonTextContainer}
+                                    >
+                                        <Text style={styles.dateButtonLabel}>
+                                            To
+                                        </Text>
+                                        <Text style={styles.dateButtonValue}>
+                                            {toDate
+                                                ? toDate.toLocaleDateString(
+                                                      "en-IN",
+                                                      {
+                                                          day: "2-digit",
+                                                          month: "short",
+                                                      }
+                                                  )
+                                                : "Select"}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* Date Pickers */}
+                        {showFromDatePicker && (
+                            <DateTimePicker
+                                value={fromDate || new Date()}
+                                mode="date"
+                                display={
+                                    Platform.OS === "ios"
+                                        ? "spinner"
+                                        : "default"
+                                }
+                                onChange={(event, selectedDate) => {
+                                    setShowFromDatePicker(false);
+                                    if (selectedDate) setFromDate(selectedDate);
+                                }}
+                            />
+                        )}
+
+                        {showToDatePicker && (
+                            <DateTimePicker
+                                value={toDate || new Date()}
+                                mode="date"
+                                display={
+                                    Platform.OS === "ios"
+                                        ? "spinner"
+                                        : "default"
+                                }
+                                onChange={(event, selectedDate) => {
+                                    setShowToDatePicker(false);
+                                    if (selectedDate) setToDate(selectedDate);
+                                }}
+                            />
+                        )}
+
+                        {/* Clear Filters */}
+                        {(selectedCampaign || fromDate || toDate) && (
+                            <TouchableOpacity
+                                style={styles.clearFiltersButton}
+                                onPress={() => {
+                                    setSelectedCampaign(null);
+                                    setFromDate(null);
+                                    setToDate(null);
+                                }}
+                            >
+                                <MaterialCommunityIcons
+                                    name="filter-remove"
+                                    size={18}
+                                    color="#fff"
+                                />
+                                <Text style={styles.clearFiltersText}>
+                                    Clear Filters
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </>
+                )}
+            </View>
+
+            {/* Section Title */}
+            {passbookData && (
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Campaign Details</Text>
+                    <View style={styles.campaignCount}>
+                        <Text style={styles.campaignCountText}>
+                            {displayedCampaigns.length}
+                        </Text>
+                    </View>
+                </View>
+            )}
         </View>
     );
 
+    // RENDER EMPTY STATE
+    const renderEmpty = () => (
+        <View style={styles.emptyState}>
+            {!selectedRetailer ? (
+                <View style={styles.emptyContent}>
+                    <LinearGradient
+                        colors={["#f8fafc", "#f1f5f9"]}
+                        style={styles.emptyIconContainer}
+                    >
+                        <MaterialCommunityIcons
+                            name="store-alert-outline"
+                            size={48}
+                            color="#94a3b8"
+                        />
+                    </LinearGradient>
+                    <Text style={styles.emptyTitle}>
+                        Select a retailer to continue
+                    </Text>
+                    <Text style={styles.emptySubtext}>
+                        Choose from the assigned retailers above
+                    </Text>
+                </View>
+            ) : passbookData ? (
+                <View style={styles.emptyContent}>
+                    <LinearGradient
+                        colors={["#f8fafc", "#f1f5f9"]}
+                        style={styles.emptyIconContainer}
+                    >
+                        <MaterialCommunityIcons
+                            name="filter-remove-outline"
+                            size={48}
+                            color="#94a3b8"
+                        />
+                    </LinearGradient>
+                    <Text style={styles.emptyTitle}>No matching campaigns</Text>
+                    <Text style={styles.emptySubtext}>
+                        Try adjusting your filters to see more results
+                    </Text>
+                </View>
+            ) : (
+                <View style={styles.emptyContent}>
+                    <LinearGradient
+                        colors={["#f8fafc", "#f1f5f9"]}
+                        style={styles.emptyIconContainer}
+                    >
+                        <MaterialCommunityIcons
+                            name="book-open-blank-variant"
+                            size={48}
+                            color="#94a3b8"
+                        />
+                    </LinearGradient>
+                    <Text style={styles.emptyTitle}>No passbook data</Text>
+                    <Text style={styles.emptySubtext}>
+                        No records found for this retailer
+                    </Text>
+                </View>
+            )}
+        </View>
+    );
+
+    // LOADING STATE
+    if (loading) {
+        return (
+            <SafeAreaView
+                style={[styles.container, styles.centerContent]}
+                edges={["top", "left", "right"]}
+            >
+                <StatusBar style="light" />
+                <ActivityIndicator size="large" color="#667eea" />
+                <Text style={styles.loadingText}>Loading your passbook...</Text>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-            <StatusBar style="dark" />
+            <StatusBar style="light" />
 
-            {/* Header */}
             <Header />
 
-            {/* Transactions List with Header */}
             <FlatList
-                data={filteredTransactions}
-                renderItem={renderTransaction}
-                keyExtractor={(item) => item.id}
+                data={displayedCampaigns}
+                renderItem={renderCampaignCard}
+                keyExtractor={(item) => item._id}
                 ListHeaderComponent={renderHeader}
-                ListFooterComponent={renderFooter}
                 ListEmptyComponent={renderEmpty}
                 contentContainerStyle={styles.listContainer}
-                onEndReached={handleLoadMore}
-                onEndReachedThreshold={0.3}
                 showsVerticalScrollIndicator={false}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
             />
         </SafeAreaView>
     );
 };
 
+// Keep the same styles from the previous retailer passbook, just add these additional ones:
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#D9D9D9",
-    },
-    header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingHorizontal: 15,
-        paddingVertical: 15,
-        backgroundColor: "#fff",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "#f0f0f0",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    logoContainer: {
-        flex: 1,
-        alignItems: "center",
-    },
-    logoPlaceholder: {
-        width: 60,
-        height: 60,
-        backgroundColor: "#f0f0f0",
-        borderRadius: 30,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    logoText: {
-        fontSize: 11,
-        fontWeight: "bold",
-        color: "#333",
-    },
-    logoSubtext: {
-        fontSize: 6,
-        color: "#666",
-        marginTop: 2,
-    },
-    placeholder: {
-        width: 40,
-    },
-    listContainer: {
-        paddingBottom: Platform.OS === "ios" ? 100 : 90,
-    },
-    headerContent: {
-        paddingHorizontal: 20,
-    },
-    employeeInfo: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#fff",
-        padding: 20,
-        marginTop: 20,
-        borderRadius: 15,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    employeePhoto: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        marginRight: 15,
-    },
-    photoPlaceholder: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: "#f0f0f0",
-        justifyContent: "center",
-        alignItems: "center",
-        marginRight: 15,
-    },
-    employeeName: {
-        fontSize: 18,
-        fontWeight: "bold",
-        color: "#333",
-    },
-    earningsContainer: {
-        flexDirection: "row",
-        marginTop: 20,
-        gap: 15,
-    },
-    earningCard: {
-        flex: 1,
-        borderRadius: 15,
-        overflow: "hidden",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    cardGradient: {
-        padding: 20,
-        minHeight: 140,
-    },
-    cardIcon: {
-        marginBottom: 10,
-    },
-    cardLabel: {
+    ...commonPassbookStyles,
+    // Employee-specific styles
+    heroEmployeeId: {
         fontSize: 13,
-        color: "#fff",
-        opacity: 0.9,
-        marginBottom: 8,
+        color: "rgba(255,255,255,0.8)",
+        marginTop: 4,
     },
-    cardAmount: {
-        fontSize: 22,
-        fontWeight: "bold",
-        color: "#fff",
-    },
-    historySection: {
-        marginTop: 30,
-        marginBottom: 20,
-    },
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: "bold",
-        color: "#333",
-        marginBottom: 15,
-    },
-    searchContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        marginBottom: 10,
-    },
-    searchInputWrapper: {
-        flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#fff",
-        borderRadius: 10,
-        paddingHorizontal: 15,
-        height: 50,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-        gap: 10,
-    },
-    searchInput: {
-        flex: 1,
+    balanceSubLabel: {
         fontSize: 14,
-        color: "#333",
+        color: "#64748b",
+        marginBottom: 16,
     },
-    filterButton: {
-        backgroundColor: "#fff",
-        width: 50,
-        height: 50,
-        borderRadius: 10,
-        justifyContent: "center",
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    filterOptions: {
-        backgroundColor: "#fff",
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 10,
-    },
-    filterText: {
-        fontSize: 14,
-        color: "#666",
-        textAlign: "center",
-    },
-    transactionCard: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        backgroundColor: "#fff",
-        padding: 15,
-        marginHorizontal: 20,
-        marginBottom: 10,
-        borderRadius: 12,
-        borderLeftWidth: 4,
-        borderLeftColor: "#28a745",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    transactionLeft: {
-        flexDirection: "row",
-        alignItems: "center",
-        flex: 1,
-    },
-    transactionIcon: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        justifyContent: "center",
-        alignItems: "center",
-        marginRight: 12,
-    },
-    creditIcon: {
-        backgroundColor: "#d4edda",
-    },
-    pendingIcon: {
-        backgroundColor: "#fff3cd",
-    },
-    transactionInfo: {
-        flex: 1,
-    },
-    transactionCampaign: {
-        fontSize: 15,
-        fontWeight: "600",
-        color: "#333",
-        marginBottom: 4,
-    },
-    transactionDate: {
-        fontSize: 12,
-        color: "#666",
-        marginBottom: 2,
-    },
-    transactionId: {
-        fontSize: 11,
-        color: "#999",
-    },
-    transactionRight: {
-        alignItems: "flex-end",
-        marginLeft: 10,
-    },
-    transactionAmount: {
-        fontSize: 18,
-        fontWeight: "bold",
-        marginBottom: 6,
-    },
-    creditAmount: {
-        color: "#28a745",
-    },
-    pendingAmount: {
-        color: "#FFA500",
-    },
-    statusBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    completedBadge: {
-        backgroundColor: "#d4edda",
-    },
-    pendingBadge: {
-        backgroundColor: "#fff3cd",
-    },
-    statusText: {
-        fontSize: 11,
-        fontWeight: "600",
-        color: "#333",
-    },
-    loadingFooter: {
-        paddingVertical: 20,
-        alignItems: "center",
-        gap: 8,
-    },
-    loadingText: {
-        fontSize: 13,
-        color: "#666",
-    },
-    noTransactions: {
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: 60,
-    },
-    noTransactionsText: {
+    balanceItemValueBlue: {
         fontSize: 16,
-        color: "#999",
+        fontWeight: "700",
+        color: "#667eea",
+    },
+    filterSectionTitle: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#475569",
+        marginBottom: 10,
         marginTop: 15,
+    },
+    retailerSelectorButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: "#fff",
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+    },
+    retailerSelectorLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        flex: 1,
+    },
+    retailerSelectorText: {
+        fontSize: 14,
+        color: "#1e293b",
+        flex: 1,
+    },
+    retailerList: {
+        maxHeight: 200,
+        backgroundColor: "#fff",
+        borderRadius: 12,
+        marginTop: 8,
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+    },
+    retailerItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        padding: 14,
+        gap: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: "#f1f5f9",
+    },
+    retailerItemSelected: {
+        backgroundColor: "#f8fafc",
+    },
+    retailerItemText: {
+        flex: 1,
+        fontSize: 14,
+        color: "#64748b",
+    },
+    retailerItemTextSelected: {
+        color: "#667eea",
+        fontWeight: "600",
+    },
+    noRetailersText: {
+        fontSize: 14,
+        color: "#94a3b8",
+        textAlign: "center",
+        padding: 20,
     },
 });
 
-export default PassbookScreen;
+export default EmployeePassbookScreen;
