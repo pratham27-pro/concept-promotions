@@ -28,7 +28,7 @@ import TermsAndConditions from "../../components/data/TermsAndConditions";
 import { bankOptions, stateOptions } from "../../components/data/common";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE_URL = "https://deployed-site-o2d3.onrender.com/api";
+const API_BASE_URL = "https://conceptpromotions.in/api";
 
 const CreateRetailerProfileScreen = ({ navigation }) => {
     const { markProfileComplete, refreshProfile } = useAuth(); // ✅ Get these from context

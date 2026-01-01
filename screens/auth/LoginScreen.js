@@ -18,7 +18,7 @@ import {
 import DropDownPicker from "react-native-dropdown-picker";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+const API_BASE_URL = "https://conceptpromotions.in/api";
 
 const LoginScreen = () => {
     const navigation = useNavigation();

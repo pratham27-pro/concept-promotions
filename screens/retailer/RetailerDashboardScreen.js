@@ -1,30 +1,30 @@
-import React, { useState, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useFocusEffect } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
+import { useCallback, useState } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
+    ActivityIndicator,
+    Alert,
     Image,
     Linking,
-    Alert,
     Platform,
-    ActivityIndicator,
     RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
 import {
     SafeAreaView,
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
 
 import * as RootNavigation from "../../navigation/RootNavigation";
 
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+const API_BASE_URL = "https://conceptpromotions.in/api";
 const SUPPORT_NUMBER = "1800123456"; // Replace with your actual number
 
 const RetailerDashboardScreen = ({ navigation }) => {
@@ -69,19 +69,16 @@ const RetailerDashboardScreen = ({ navigation }) => {
                 throw new Error(data.message || "Failed to fetch campaigns");
             }
 
-            // Set retailer info
-            setRetailerName(data.retailer.name);
-            setRetailerId(data.retailer.id);
+            console.log("📦 API Response:", data); // ✅ Debug log
 
-            // Transform campaigns data to match UI structure
+            // ✅ Set retailer info from response
+            if (data.retailer) {
+                setRetailerName(data.retailer.name);
+                setRetailerId(data.retailer.id);
+            }
+
+            // ✅ Transform campaigns data
             const transformedCampaigns = data.campaigns.map((campaign) => {
-                // Find this retailer's status in the campaign
-                const retailerEntry = campaign.assignedRetailers?.find(
-                    (r) =>
-                        r.retailerId === data.retailer.id ||
-                        r.retailerId?._id === data.retailer.id
-                );
-
                 return {
                     id: campaign._id,
                     title: campaign.name || "Untitled Campaign",
@@ -92,8 +89,8 @@ const RetailerDashboardScreen = ({ navigation }) => {
                     endDate: formatDate(campaign.campaignEndDate),
                     image:
                         campaign.image || "https://via.placeholder.com/300x150",
-                    status: retailerEntry?.status || null,
-                    assignedEmployees: campaign.assignedEmployees || [],
+                    status: campaign.retailerStatus?.status || null, // ✅ Get status from retailerStatus
+                    assignedEmployees: campaign.assignedEmployees || [], // ✅ Already in correct format
                     campaignType: campaign.type,
                     client: campaign.client,
                     regions: campaign.regions || [],
@@ -104,8 +101,9 @@ const RetailerDashboardScreen = ({ navigation }) => {
 
             setCampaigns(transformedCampaigns);
             console.log("✅ Campaigns loaded:", transformedCampaigns.length);
+            console.log("✅ Retailer Name:", data.retailer?.name); // ✅ Debug log
         } catch (error) {
-            console.error("Error fetching campaigns:", error);
+            console.error("❌ Error fetching campaigns:", error);
             Alert.alert("Error", "Failed to load campaigns. Please try again.");
         } finally {
             setLoading(false);
