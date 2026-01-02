@@ -1,7 +1,6 @@
 // navigation/AppNavigator.js
-import React from "react";
 import { createStackNavigator } from "@react-navigation/stack";
-import { ActivityIndicator, View, StyleSheet } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -12,8 +11,6 @@ import CreateEmployeeProfileScreen from "../screens/employee/CreateEmployeeProfi
 import CreateRetailerProfileScreen from "../screens/retailer/CreateRetailerProfileScreen";
 
 // ✅ Import Tab Navigators instead of Dashboard Screens
-import EmployeeTabNavigator from "../navigation/employee/EmployeeTabNavigator";
-import RetailerTabNavigator from "../navigation/retailer/RetailerTabNavigator";
 import ClientStackNavigator from "../navigation/client/ClientStackNavigator";
 
 // ✅ Import STACK Navigators (not Tab Navigators)

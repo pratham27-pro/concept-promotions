@@ -20,14 +20,12 @@ const SearchableDropdown = ({
     dropDownContainerStyle,
     labelStyle,
     error,
-    // onSelectItem,
 }) => {
-    // const handleSelectItem = (item) => {
-    //     onSelectItem && onSelectItem(item);
-    // };
+    // When dropdown is open, boost its z-index significantly
+    const activeZIndex = open ? 10000 : zIndex;
 
     return (
-        <View style={[styles.container, { zIndex }]}>
+        <View style={[styles.container, { zIndex: activeZIndex }]}>
             {label && (
                 <Text style={[styles.label, labelStyle]}>
                     {label} {required && <Text style={styles.required}>*</Text>}
@@ -53,13 +51,15 @@ const SearchableDropdown = ({
                 listMode="SCROLLVIEW"
                 scrollViewProps={{
                     nestedScrollEnabled: true,
-                    scrollEnabled: true,
                     showsVerticalScrollIndicator: true,
                 }}
                 dropDownDirection="AUTO"
                 searchPlaceholder="Search..."
-                // onSelectItem={handleSelectItem}
                 theme="LIGHT"
+                itemKey="value"
+                zIndex={activeZIndex}
+                zIndexInverse={activeZIndex - 1000}
+                maxHeight={200}
             />
             {((multiple && Array.isArray(value) && value.length > 0) ||
                 (!multiple && value)) &&
@@ -68,9 +68,9 @@ const SearchableDropdown = ({
                         style={styles.clearButton}
                         onPress={() => {
                             if (multiple) {
-                                setValue((prev) => []);
+                                setValue([]);
                             } else {
-                                setValue((prev) => null);
+                                setValue(null);
                             }
                         }}
                     >
@@ -105,7 +105,6 @@ const styles = StyleSheet.create({
         backgroundColor: "#F5F5F5",
         borderColor: "#E0E0E0",
         borderRadius: 10,
-        maxHeight: 220, // ensures scroll
     },
     errorText: {
         color: "#dc3545",

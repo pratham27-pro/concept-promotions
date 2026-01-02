@@ -219,7 +219,12 @@ const EmployeeDashboardScreen = ({ navigation }) => {
     };
 
     const handleViewDetails = (campaign) => {
-        navigation.navigate("EmployeeCampaignDetails", { campaign });
+        console.log("📋 Navigating with campaign:", campaign);
+
+        // Navigate with the full raw campaign data
+        navigation.navigate("EmployeeCampaignDetails", {
+            campaign: campaign.rawData || campaign,
+        });
     };
 
     if (loading) {
