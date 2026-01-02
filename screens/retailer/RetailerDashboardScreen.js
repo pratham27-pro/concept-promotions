@@ -17,18 +17,12 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import {
-    SafeAreaView,
-    useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import * as RootNavigation from "../../navigation/RootNavigation";
-
-const API_BASE_URL = "https://conceptpromotions.in/api";
+const API_BASE_URL = "https://deployed-site-wt67.onrender.com/api";
 const SUPPORT_NUMBER = "1800123456"; // Replace with your actual number
 
 const RetailerDashboardScreen = ({ navigation }) => {
-    const insets = useSafeAreaInsets();
     const tabBarHeight = useBottomTabBarHeight();
 
     const [retailerName, setRetailerName] = useState("");
@@ -69,18 +63,17 @@ const RetailerDashboardScreen = ({ navigation }) => {
                 throw new Error(data.message || "Failed to fetch campaigns");
             }
 
-            console.log("📦 API Response:", data); // ✅ Debug log
-
-            // ✅ Set retailer info from response
+            // Set retailer info from response
             if (data.retailer) {
                 setRetailerName(data.retailer.name);
                 setRetailerId(data.retailer.id);
             }
 
-            // ✅ Transform campaigns data
+            // Transform campaigns data
             const transformedCampaigns = data.campaigns.map((campaign) => {
                 return {
                     id: campaign._id,
+                    name: campaign.name || "Untitled Campaign",
                     title: campaign.name || "Untitled Campaign",
                     description: `${campaign.type || "Campaign"} - ${
                         campaign.client || "Client"
@@ -89,8 +82,8 @@ const RetailerDashboardScreen = ({ navigation }) => {
                     endDate: formatDate(campaign.campaignEndDate),
                     image:
                         campaign.image || "https://via.placeholder.com/300x150",
-                    status: campaign.retailerStatus?.status || null, // ✅ Get status from retailerStatus
-                    assignedEmployees: campaign.assignedEmployees || [], // ✅ Already in correct format
+                    status: campaign.retailerStatus?.status || null,
+                    assignedEmployees: campaign.assignedEmployees || [],
                     campaignType: campaign.type,
                     client: campaign.client,
                     regions: campaign.regions || [],
@@ -101,7 +94,6 @@ const RetailerDashboardScreen = ({ navigation }) => {
 
             setCampaigns(transformedCampaigns);
             console.log("✅ Campaigns loaded:", transformedCampaigns.length);
-            console.log("✅ Retailer Name:", data.retailer?.name); // ✅ Debug log
         } catch (error) {
             console.error("❌ Error fetching campaigns:", error);
             Alert.alert("Error", "Failed to load campaigns. Please try again.");
@@ -203,7 +195,8 @@ const RetailerDashboardScreen = ({ navigation }) => {
     };
 
     const handleViewDetails = (campaign) => {
-        RootNavigation.navigate("CampaignDetails", {
+        // Fixed navigation - using the navigation prop directly
+        navigation.navigate("CampaignDetails", {
             campaign: campaign.rawData || campaign,
         });
     };

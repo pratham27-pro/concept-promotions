@@ -1,340 +1,459 @@
-import React, { useState } from "react";
-import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    TextInput,
-    Alert,
-    Platform,
-    ActivityIndicator,
-} from "react-native";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Location from "expo-location";
+import axios from "axios";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // Import reusable components
 import Header from "../../components/common/Header";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
-import FileUpload from "../../components/common/FileUpload";
 
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+const API_BASE_URL = "https://deployed-site-wt67.onrender.com/api";
 
-// TODO: Yet to be tested after retailer profile completion and updation is sorted.
+const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
 
-const SubmitReportScreen = ({ route, navigation }) => {
+const RetailerSubmitReportScreen = ({ route, navigation }) => {
     const { campaign } = route.params;
 
-    // Loading state
-    const [submitting, setSubmitting] = useState(false);
+    // Retailer & Campaign Info
+    const [retailerInfo, setRetailerInfo] = useState(null);
+    const [campaignId, setCampaignId] = useState(null);
 
-    // Visit Type (always "physical" for retailer)
-    const [visitType] = useState("physical");
+    // Loading states
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
 
     // Report Type
     const [reportTypeOpen, setReportTypeOpen] = useState(false);
     const [reportType, setReportType] = useState(null);
     const [reportTypeOptions] = useState([
-        { label: "Window Display", value: "window" },
-        { label: "Stock", value: "stock" },
-        { label: "Others", value: "others" },
+        { label: "Window Display", value: "Window Display" },
+        { label: "Stock", value: "Stock" },
+        { label: "Others", value: "Others" },
     ]);
 
-    // Frequency (Future use)
+    // Frequency
     const [frequencyOpen, setFrequencyOpen] = useState(false);
     const [frequency, setFrequency] = useState(null);
     const [frequencyOptions] = useState([
-        { label: "Daily", value: "daily" },
-        { label: "Weekly", value: "weekly" },
-        { label: "Fortnightly", value: "fortnightly" },
-        { label: "Monthly", value: "monthly" },
-        { label: "Custom", value: "custom" },
+        { label: "Daily", value: "Daily" },
+        { label: "Weekly", value: "Weekly" },
+        { label: "Fortnightly", value: "Fortnightly" },
+        { label: "Monthly", value: "Monthly" },
+        { label: "Adhoc", value: "Adhoc" },
     ]);
 
-    // Custom Date Range
-    const [showCustomDate, setShowCustomDate] = useState(false);
-    const [showFromPicker, setShowFromPicker] = useState(false);
-    const [showToPicker, setShowToPicker] = useState(false);
-    const [fromDate, setFromDate] = useState(new Date());
-    const [toDate, setToDate] = useState(new Date());
+    // Date & Remarks
+    const [dateOfSubmission, setDateOfSubmission] = useState(getTodayDate());
+    const [remarks, setRemarks] = useState("");
 
-    // Future Options
-    const [futureOpen, setFutureOpen] = useState(false);
-    const [future, setFuture] = useState(null);
-    const [futureOptions] = useState([
-        { label: "Future Option 1", value: "future1" },
-        { label: "Future Option 2", value: "future2" },
-        { label: "Future Option 3", value: "future3" },
-    ]);
-
-    // Stock Section
+    // Stock Fields
     const [stockTypeOpen, setStockTypeOpen] = useState(false);
     const [stockType, setStockType] = useState(null);
     const [stockTypeOptions] = useState([
-        { label: "Opening Stock", value: "opening" },
-        { label: "Closing Stock", value: "closing" },
-        { label: "Purchase Stock", value: "purchase" },
-        { label: "Sold Stock", value: "sold" },
-    ]);
-
-    const [brandOpen, setBrandOpen] = useState(false);
-    const [brand, setBrand] = useState(null);
-    const [brandOptions] = useState([
-        { label: "Brand A", value: "brand1" },
-        { label: "Brand B", value: "brand2" },
-        { label: "Brand C", value: "brand3" },
-    ]);
-
-    const [productOpen, setProductOpen] = useState(false);
-    const [product, setProduct] = useState(null);
-    const [productOptions] = useState([
-        { label: "Product X", value: "product1" },
-        { label: "Product Y", value: "product2" },
-        { label: "Product Z", value: "product3" },
-    ]);
-
-    const [skuOpen, setSkuOpen] = useState(false);
-    const [sku, setSku] = useState(null);
-    const [skuOptions] = useState([
-        { label: "SKU 1", value: "sku1" },
-        { label: "SKU 2", value: "sku2" },
-        { label: "SKU 3", value: "sku3" },
+        { label: "Opening Stock", value: "Opening Stock" },
+        { label: "Closing Stock", value: "Closing Stock" },
+        { label: "Purchase Stock", value: "Purchase Stock" },
+        { label: "Sold Stock", value: "Sold Stock" },
     ]);
 
     const [productTypeOpen, setProductTypeOpen] = useState(false);
     const [productType, setProductType] = useState(null);
     const [productTypeOptions] = useState([
-        { label: "Focus", value: "focus" },
-        { label: "All", value: "all" },
+        { label: "Focus", value: "Focus" },
+        { label: "All", value: "All" },
     ]);
 
+    const [brand, setBrand] = useState("");
+    const [product, setProduct] = useState("");
+    const [sku, setSku] = useState("");
     const [quantity, setQuantity] = useState("");
-    const [billCopy, setBillCopy] = useState(null);
 
-    // Other Reason Text (for "others" report type)
-    const [otherReasonText, setOtherReasonText] = useState("");
+    // Files
+    const [shopDisplayImages, setShopDisplayImages] = useState([]);
+    const [billCopies, setBillCopies] = useState([]);
+    const [otherFiles, setOtherFiles] = useState([]);
 
-    // Files for window and others
-    const [files, setFiles] = useState([]);
+    // ===============================
+    // FETCH DATA ON MOUNT
+    // ===============================
+    useEffect(() => {
+        fetchRetailerInfo();
+        if (campaign) {
+            fetchCampaignId();
+        }
+    }, [campaign]);
 
-    // Location
-    const [location, setLocation] = useState(null);
-
-    // Get current location
-    const getCurrentLocation = async () => {
+    const fetchRetailerInfo = async () => {
         try {
-            const { status } =
-                await Location.requestForegroundPermissionsAsync();
-            if (status !== "granted") {
-                Alert.alert(
-                    "Permission Denied",
-                    "Location permission is required to submit reports"
-                );
-                return null;
-            }
-
-            const currentLocation = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.High,
-            });
-
-            return {
-                latitude: currentLocation.coords.latitude,
-                longitude: currentLocation.coords.longitude,
-            };
-        } catch (error) {
-            console.error("Error getting location:", error);
-            return null;
-        }
-    };
-
-    const validateForm = () => {
-        if (!reportType) {
-            Alert.alert("Error", "Please select report type");
-            return false;
-        }
-
-        // Stock validation
-        if (reportType === "stock") {
-            if (!stockType) {
-                Alert.alert("Error", "Please select stock type");
-                return false;
-            }
-            if (!brand) {
-                Alert.alert("Error", "Please select brand");
-                return false;
-            }
-            if (!product) {
-                Alert.alert("Error", "Please select product");
-                return false;
-            }
-            if (!sku) {
-                Alert.alert("Error", "Please select SKU");
-                return false;
-            }
-            if (!quantity || isNaN(quantity) || Number(quantity) <= 0) {
-                Alert.alert("Error", "Please enter valid quantity");
-                return false;
-            }
-        }
-
-        // Window validation
-        if (reportType === "window") {
-            if (!files || files.length === 0) {
-                Alert.alert(
-                    "Error",
-                    "Please upload at least one shop display image"
-                );
-                return false;
-            }
-        }
-
-        // Others validation
-        if (reportType === "others") {
-            if (!otherReasonText.trim()) {
-                Alert.alert("Error", "Please describe the reason");
-                return false;
-            }
-            if (!files || files.length === 0) {
-                Alert.alert("Error", "Please upload a file");
-                return false;
-            }
-        }
-
-        return true;
-    };
-
-    const handleSubmit = async () => {
-        if (!validateForm()) return;
-
-        setSubmitting(true);
-
-        try {
-            // Get location
-            const currentLocation = await getCurrentLocation();
-            if (!currentLocation) {
-                Alert.alert(
-                    "Error",
-                    "Unable to get location. Please try again."
-                );
-                setSubmitting(false);
-                return;
-            }
-
             const token = await AsyncStorage.getItem("userToken");
             if (!token) {
-                Alert.alert("Error", "Please login again.");
+                Alert.alert("Error", "Please log in again");
                 navigation.replace("Login");
                 return;
             }
 
+            const response = await fetch(
+                `${API_BASE_URL}/retailer/retailer/me`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to load retailer profile");
+            }
+
+            const data = await response.json();
+            console.log(
+                "✅ FULL Retailer data:",
+                JSON.stringify(data, null, 2)
+            );
+            console.log("✅ Retailer loaded:", {
+                name: data.name,
+                uniqueId: data.uniqueId,
+                shopName: data.shopDetails?.shopName,
+            });
+            setRetailerInfo(data);
+        } catch (err) {
+            console.error("❌ Error fetching retailer info:", err);
+            Alert.alert("Error", "Failed to load retailer information");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchCampaignId = async () => {
+        try {
+            const token = await AsyncStorage.getItem("userToken");
+            const response = await axios.get(
+                `${API_BASE_URL}/retailer/campaigns`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+
+            const matchedCampaign = response.data.campaigns?.find(
+                (c) => c.name === campaign.name || c._id === campaign.id
+            );
+
+            if (matchedCampaign) {
+                setCampaignId(matchedCampaign._id);
+                console.log("✅ Campaign ID found:", matchedCampaign._id);
+            }
+        } catch (err) {
+            console.error("❌ Error fetching campaign ID:", err);
+        }
+    };
+
+    // ===============================
+    // IMAGE COMPRESSION HELPER
+    // ===============================
+    const compressImage = async (imageUri) => {
+        try {
+            const manipResult = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [{ resize: { width: 1024 } }], // Resize to max 1024px width
+                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            return manipResult.uri;
+        } catch (error) {
+            console.error("Error compressing image:", error);
+            return imageUri; // Return original if compression fails
+        }
+    };
+
+    // ===============================
+    // FILE HANDLERS
+    // ===============================
+    const pickShopDisplayImages = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsMultipleSelection: true,
+            quality: 0.8,
+        });
+
+        if (!result.canceled) {
+            setShopDisplayImages((prev) => [...prev, ...result.assets]);
+        }
+    };
+
+    const pickBillCopies = async () => {
+        const result = await DocumentPicker.getDocumentAsync({
+            type: ["image/*", "application/pdf"],
+            multiple: true,
+        });
+
+        if (!result.canceled) {
+            setBillCopies((prev) => [...prev, ...result.assets]);
+        }
+    };
+
+    const pickOtherFiles = async () => {
+        const result = await DocumentPicker.getDocumentAsync({
+            type: "*/*",
+            multiple: true,
+        });
+
+        if (!result.canceled) {
+            setOtherFiles((prev) => [...prev, ...result.assets]);
+        }
+    };
+
+    const removeShopImage = (index) => {
+        setShopDisplayImages((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const removeBillCopy = (index) => {
+        setBillCopies((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const removeOtherFile = (index) => {
+        setOtherFiles((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    // ===============================
+    // VALIDATION & SUBMISSION
+    // ===============================
+    const handleSubmit = async () => {
+        // Validation
+        if (!reportType) {
+            Alert.alert("Error", "Please select a report type");
+            return;
+        }
+        if (!campaignId) {
+            Alert.alert("Error", "Campaign information not loaded");
+            return;
+        }
+        if (!frequency) {
+            Alert.alert("Error", "Please select frequency");
+            return;
+        }
+        if (!dateOfSubmission) {
+            Alert.alert("Error", "Please select date of submission");
+            return;
+        }
+        if (!retailerInfo) {
+            Alert.alert("Error", "Retailer information not loaded");
+            return;
+        }
+        if (!retailerInfo.uniqueId) {
+            Alert.alert(
+                "Error",
+                "Retailer unique ID not found. Please contact support."
+            );
+            return;
+        }
+
+        // Stock validation
+        if (reportType.value === "Stock") {
+            if (
+                !stockType ||
+                !brand.trim() ||
+                !product.trim() ||
+                !sku.trim() ||
+                !productType ||
+                !quantity
+            ) {
+                Alert.alert("Error", "Please fill all stock fields");
+                return;
+            }
+        }
+
+        try {
+            setSubmitting(true);
             const formData = new FormData();
 
-            // Basic fields
-            formData.append("campaignId", campaign.id);
-            formData.append("visitType", visitType);
-            formData.append("reportType", reportType);
-            formData.append("latitude", currentLocation.latitude);
-            formData.append("longitude", currentLocation.longitude);
+            // Required fields
+            formData.append("reportType", reportType.value);
+            formData.append("campaignId", campaignId);
+            formData.append("frequency", frequency.value);
+            formData.append("dateOfSubmission", dateOfSubmission);
 
-            // Stock fields
-            if (reportType === "stock") {
-                formData.append("stockType", stockType);
+            // Submitter info (Retailer)
+            formData.append("submittedBy[role]", "Retailer");
+            formData.append(
+                "submittedBy[userId]",
+                retailerInfo._id || retailerInfo.id
+            );
+
+            // Retailer info - using uniqueId as outletCode
+            formData.append(
+                "retailer[retailerId]",
+                retailerInfo._id || retailerInfo.id
+            );
+            formData.append(
+                "retailer[outletName]",
+                retailerInfo.shopDetails?.shopName || retailerInfo.name || ""
+            );
+            formData.append("retailer[retailerName]", retailerInfo.name || "");
+            formData.append("retailer[outletCode]", retailerInfo.uniqueId);
+
+            console.log("📤 Submitting with:", {
+                uniqueId: retailerInfo.uniqueId,
+                dateOfSubmission: dateOfSubmission,
+                reportType: reportType.value,
+            });
+
+            // Optional remarks
+            if (remarks) {
+                formData.append("remarks", remarks);
+            }
+
+            // Stock-specific fields
+            if (reportType.value === "Stock") {
+                formData.append("stockType", stockType.value);
                 formData.append("brand", brand);
                 formData.append("product", product);
                 formData.append("sku", sku);
+                formData.append("productType", productType.value);
                 formData.append("quantity", quantity);
 
-                // Bill copy upload
-                if (billCopy && billCopy.uri) {
-                    formData.append("images", {
-                        uri: billCopy.uri,
-                        name: billCopy.name || "bill_copy.pdf",
-                        type:
-                            billCopy.mimeType ||
-                            billCopy.type ||
-                            "application/pdf",
+                for (const file of billCopies) {
+                    formData.append("billCopies", {
+                        uri: file.uri,
+                        type: file.mimeType || "application/pdf",
+                        name: file.name || "bill.pdf",
                     });
                 }
             }
 
-            // Others fields
-            if (reportType === "others") {
-                formData.append("otherReasonText", otherReasonText);
+            // Window Display images - WITH COMPRESSION
+            if (reportType.value === "Window Display") {
+                console.log(
+                    `🖼️ Compressing ${shopDisplayImages.length} images...`
+                );
+
+                for (let i = 0; i < shopDisplayImages.length; i++) {
+                    const file = shopDisplayImages[i];
+                    const compressedUri = await compressImage(file.uri);
+
+                    formData.append("shopDisplayImages", {
+                        uri: compressedUri,
+                        type: "image/jpeg",
+                        name: `image_${i}.jpg`,
+                    });
+                    console.log(`✅ Image ${i + 1} compressed and added`);
+                }
             }
 
-            // Images upload (for window and others)
-            if (
-                (reportType === "window" || reportType === "others") &&
-                files.length > 0
-            ) {
-                files.forEach((file, index) => {
-                    if (file && file.uri) {
-                        formData.append("images", {
-                            uri: file.uri,
-                            name: file.name || `image_${index + 1}.jpg`,
-                            type: file.mimeType || file.type || "image/jpeg",
-                        });
-                    }
-                });
+            // Others files
+            if (reportType.value === "Others") {
+                for (const file of otherFiles) {
+                    formData.append("files", {
+                        uri: file.uri,
+                        type: file.mimeType || "application/octet-stream",
+                        name: file.name || "file",
+                    });
+                }
             }
 
-            console.log("📤 Submitting retailer report...");
+            const token = await AsyncStorage.getItem("userToken");
 
-            const response = await fetch(
-                `${API_BASE_URL}/retailer/report/submit`,
+            console.log("🚀 Starting upload...");
+
+            const response = await axios.post(
+                `${API_BASE_URL}/reports/create`,
+                formData,
                 {
-                    method: "POST",
                     headers: {
+                        "Content-Type": "multipart/form-data",
                         Authorization: `Bearer ${token}`,
-                        // Don't set Content-Type - FormData will set it with boundary
                     },
-                    body: formData,
+                    timeout: 180000, // 3 minutes timeout
                 }
             );
 
-            const responseText = await response.text();
-            console.log("📥 Raw response:", responseText);
+            console.log("✅ Response:", response.data);
 
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                console.error("❌ Failed to parse JSON:", e);
-                throw new Error("Server returned invalid response");
+            if (response.data.success) {
+                Alert.alert("Success", "Report submitted successfully!", [
+                    {
+                        text: "OK",
+                        onPress: () => {
+                            // Reset form
+                            setReportType(null);
+                            setFrequency(null);
+                            setDateOfSubmission(getTodayDate());
+                            setRemarks("");
+                            setStockType(null);
+                            setBrand("");
+                            setProduct("");
+                            setSku("");
+                            setProductType(null);
+                            setQuantity("");
+                            setShopDisplayImages([]);
+                            setBillCopies([]);
+                            setOtherFiles([]);
+                            navigation.goBack();
+                        },
+                    },
+                ]);
+            }
+        } catch (err) {
+            console.error("❌ Submission error:", err);
+            console.error("❌ Error response:", err.response?.data);
+
+            let errorMessage = "Failed to submit report";
+
+            if (err.code === "ECONNABORTED") {
+                errorMessage =
+                    "Upload timeout. Please try with fewer or smaller images.";
+            } else if (err.response?.data?.message) {
+                errorMessage = err.response.data.message;
             }
 
-            if (!response.ok) {
-                throw new Error(data.message || "Failed to submit report");
-            }
-
-            console.log("✅ Report submitted successfully:", data);
-
-            Alert.alert("Success", "Report submitted successfully!", [
-                {
-                    text: "OK",
-                    onPress: () => navigation.goBack(),
-                },
-            ]);
-        } catch (error) {
-            console.error("❌ Error submitting report:", error);
-            Alert.alert(
-                "Error",
-                error.message || "Failed to submit report. Please try again."
-            );
+            Alert.alert("Error", errorMessage);
         } finally {
             setSubmitting(false);
         }
     };
 
+    // ===============================
+    // RENDER
+    // ===============================
+    if (loading) {
+        return (
+            <SafeAreaView
+                style={styles.container}
+                edges={["top", "left", "right"]}
+            >
+                <StatusBar style="dark" />
+                <Header title="Submit Report" />
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#E4002B" />
+                    <Text style={styles.loadingText}>Loading...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <StatusBar style="dark" />
-
-            {/* Header using reusable component */}
             <Header title="Submit Report" />
 
             <ScrollView
@@ -345,115 +464,106 @@ const SubmitReportScreen = ({ route, navigation }) => {
                 <View style={styles.formContainer}>
                     {/* Campaign Info */}
                     <View style={styles.campaignInfo}>
-                        <Text style={styles.campaignInfoText}>
-                            Campaign: {campaign.title}
+                        <Text style={styles.infoLabel}>Campaign</Text>
+                        <Text style={styles.infoValue}>
+                            {campaign?.name || campaign?.title || "Loading..."}
                         </Text>
                     </View>
+
+                    {/* Retailer Info */}
+                    {retailerInfo && (
+                        <View style={styles.retailerInfo}>
+                            <Text style={styles.infoLabel}>Retailer</Text>
+                            <Text style={styles.infoValue}>
+                                {retailerInfo.name}
+                            </Text>
+                            <Text style={styles.infoSubtext}>
+                                {retailerInfo.shopDetails?.shopName}
+                            </Text>
+                            <Text style={styles.infoSubtext}>
+                                Unique ID:{" "}
+                                {retailerInfo.uniqueId || "Not assigned"}
+                            </Text>
+                        </View>
+                    )}
 
                     {/* Type of Report */}
                     <SearchableDropdown
                         label="Type of Report"
                         placeholder="Select Report Type"
                         open={reportTypeOpen}
-                        value={reportType}
+                        value={reportType?.value || null}
                         items={reportTypeOptions}
                         setOpen={setReportTypeOpen}
-                        setValue={setReportType}
-                        required={true}
-                        zIndex={7000}
-                    />
-
-                    {/* Frequency (Future Use) */}
-                    <SearchableDropdown
-                        label="Frequency (Future Use)"
-                        placeholder="Select Frequency"
-                        open={frequencyOpen}
-                        value={frequency}
-                        items={frequencyOptions}
-                        setOpen={setFrequencyOpen}
-                        setValue={setFrequency}
-                        zIndex={6000}
-                        onSelectItem={(item) => {
-                            setShowCustomDate(item.value === "custom");
+                        setValue={(callback) => {
+                            const val =
+                                typeof callback === "function"
+                                    ? callback(reportType?.value)
+                                    : callback;
+                            const type = reportTypeOptions.find(
+                                (t) => t.value === val
+                            );
+                            setReportType(type || null);
                         }}
-                    />
-
-                    {/* Custom Date Range */}
-                    {showCustomDate && (
-                        <View
-                            style={[styles.dateRangeContainer, { zIndex: 1 }]}
-                        >
-                            <View style={styles.dateInputWrapper}>
-                                <Text style={styles.label}>From *</Text>
-                                <TouchableOpacity
-                                    style={styles.dateInput}
-                                    onPress={() => setShowFromPicker(true)}
-                                >
-                                    <Text>{fromDate.toLocaleDateString()}</Text>
-                                    <Ionicons
-                                        name="calendar-outline"
-                                        size={20}
-                                        color="#666"
-                                    />
-                                </TouchableOpacity>
-                                {showFromPicker && (
-                                    <DateTimePicker
-                                        value={fromDate}
-                                        mode="date"
-                                        display="default"
-                                        onChange={(event, selectedDate) => {
-                                            setShowFromPicker(false);
-                                            if (selectedDate)
-                                                setFromDate(selectedDate);
-                                        }}
-                                    />
-                                )}
-                            </View>
-
-                            <View style={styles.dateInputWrapper}>
-                                <Text style={styles.label}>To *</Text>
-                                <TouchableOpacity
-                                    style={styles.dateInput}
-                                    onPress={() => setShowToPicker(true)}
-                                >
-                                    <Text>{toDate.toLocaleDateString()}</Text>
-                                    <Ionicons
-                                        name="calendar-outline"
-                                        size={20}
-                                        color="#666"
-                                    />
-                                </TouchableOpacity>
-                                {showToPicker && (
-                                    <DateTimePicker
-                                        value={toDate}
-                                        mode="date"
-                                        display="default"
-                                        onChange={(event, selectedDate) => {
-                                            setShowToPicker(false);
-                                            if (selectedDate)
-                                                setToDate(selectedDate);
-                                        }}
-                                    />
-                                )}
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Extra (Future) */}
-                    <SearchableDropdown
-                        label="Extra (Future Use)"
-                        placeholder="Select future use"
-                        open={futureOpen}
-                        value={future}
-                        items={futureOptions}
-                        setOpen={setFutureOpen}
-                        setValue={setFuture}
+                        setItems={() => {}}
+                        required={true}
                         zIndex={5000}
                     />
 
+                    {/* Frequency */}
+                    <SearchableDropdown
+                        label="Frequency"
+                        placeholder="Select Frequency"
+                        open={frequencyOpen}
+                        value={frequency?.value || null}
+                        items={frequencyOptions}
+                        setOpen={setFrequencyOpen}
+                        setValue={(callback) => {
+                            const val =
+                                typeof callback === "function"
+                                    ? callback(frequency?.value)
+                                    : callback;
+                            const freq = frequencyOptions.find(
+                                (f) => f.value === val
+                            );
+                            setFrequency(freq || null);
+                        }}
+                        setItems={() => {}}
+                        required={true}
+                        zIndex={4000}
+                    />
+
+                    {/* Date of Submission */}
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>
+                            Date of Submission{" "}
+                            <Text style={styles.required}>*</Text>
+                        </Text>
+                        <TextInput
+                            style={styles.input}
+                            value={dateOfSubmission}
+                            onChangeText={setDateOfSubmission}
+                            placeholder="YYYY-MM-DD"
+                        />
+                    </View>
+
+                    {/* Remarks */}
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Remarks (Optional)</Text>
+                        <TextInput
+                            style={[styles.input, styles.textArea]}
+                            placeholder="Add any additional notes..."
+                            value={remarks}
+                            onChangeText={setRemarks}
+                            multiline
+                            numberOfLines={4}
+                            textAlignVertical="top"
+                        />
+                    </View>
+
                     {/* STOCK SECTION */}
-                    {reportType === "stock" && (
-                        <View style={[styles.stockSection, { zIndex: 1 }]}>
+                    {reportType?.value === "Stock" && (
+                        <View style={styles.stockSection}>
                             <Text style={styles.sectionTitle}>
                                 Stock Details
                             </Text>
@@ -462,146 +572,246 @@ const SubmitReportScreen = ({ route, navigation }) => {
                                 label="Type of Stock"
                                 placeholder="Select Stock Type"
                                 open={stockTypeOpen}
-                                value={stockType}
+                                value={stockType?.value || null}
                                 items={stockTypeOptions}
                                 setOpen={setStockTypeOpen}
-                                setValue={setStockType}
-                                required={true}
-                                zIndex={4000}
-                            />
-
-                            <SearchableDropdown
-                                label="Brand"
-                                placeholder="Select Brand"
-                                open={brandOpen}
-                                value={brand}
-                                items={brandOptions}
-                                setOpen={setBrandOpen}
-                                setValue={setBrand}
+                                setValue={(callback) => {
+                                    const val =
+                                        typeof callback === "function"
+                                            ? callback(stockType?.value)
+                                            : callback;
+                                    const type = stockTypeOptions.find(
+                                        (t) => t.value === val
+                                    );
+                                    setStockType(type || null);
+                                }}
+                                setItems={() => {}}
                                 required={true}
                                 zIndex={3000}
                             />
 
-                            <SearchableDropdown
-                                label="Product"
-                                placeholder="Select Product"
-                                open={productOpen}
-                                value={product}
-                                items={productOptions}
-                                setOpen={setProductOpen}
-                                setValue={setProduct}
-                                required={true}
-                                zIndex={2000}
-                            />
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>
+                                    Brand <Text style={styles.required}>*</Text>
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter brand name"
+                                    value={brand}
+                                    onChangeText={setBrand}
+                                />
+                            </View>
 
-                            <SearchableDropdown
-                                label="SKU"
-                                placeholder="Select SKU"
-                                open={skuOpen}
-                                value={sku}
-                                items={skuOptions}
-                                setOpen={setSkuOpen}
-                                setValue={setSku}
-                                required={true}
-                                zIndex={1000}
-                            />
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>
+                                    Product{" "}
+                                    <Text style={styles.required}>*</Text>
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter product name"
+                                    value={product}
+                                    onChangeText={setProduct}
+                                />
+                            </View>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>
+                                    SKU <Text style={styles.required}>*</Text>
+                                </Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter SKU"
+                                    value={sku}
+                                    onChangeText={setSku}
+                                />
+                            </View>
 
                             <SearchableDropdown
                                 label="Product Type"
                                 placeholder="Select Product Type"
                                 open={productTypeOpen}
-                                value={productType}
+                                value={productType?.value || null}
                                 items={productTypeOptions}
                                 setOpen={setProductTypeOpen}
-                                setValue={setProductType}
-                                zIndex={500}
+                                setValue={(callback) => {
+                                    const val =
+                                        typeof callback === "function"
+                                            ? callback(productType?.value)
+                                            : callback;
+                                    const type = productTypeOptions.find(
+                                        (t) => t.value === val
+                                    );
+                                    setProductType(type || null);
+                                }}
+                                setItems={() => {}}
+                                required={true}
+                                zIndex={2000}
                             />
 
-                            <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                                <Text style={styles.label}>Quantity *</Text>
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>
+                                    Quantity{" "}
+                                    <Text style={styles.required}>*</Text>
+                                </Text>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Enter quantity"
-                                    placeholderTextColor="#999"
                                     value={quantity}
-                                    onChangeText={(text) =>
-                                        setQuantity(text.replace(/[^0-9]/g, ""))
-                                    }
+                                    onChangeText={setQuantity}
                                     keyboardType="numeric"
                                 />
                             </View>
 
-                            {/* Bill Copy */}
-                            <FileUpload
-                                label="Bill Copy (Optional)"
-                                file={billCopy}
-                                onFileSelect={setBillCopy}
-                                onFileRemove={() => setBillCopy(null)}
-                                accept="all"
-                                placeholder="Click to upload bill copy"
-                            />
-                        </View>
-                    )}
+                            {/* Bill Copies */}
+                            <View style={styles.fileSection}>
+                                <Text style={styles.label}>
+                                    Bill Copies (Images/PDF)
+                                </Text>
+                                <TouchableOpacity
+                                    style={styles.uploadButton}
+                                    onPress={pickBillCopies}
+                                >
+                                    <Ionicons
+                                        name="cloud-upload-outline"
+                                        size={24}
+                                        color="#666"
+                                    />
+                                    <Text style={styles.uploadButtonText}>
+                                        Upload Bill Copies
+                                    </Text>
+                                </TouchableOpacity>
 
-                    {/* WINDOW SECTION */}
-                    {reportType === "window" && (
-                        <View style={{ zIndex: 1 }}>
-                            <FileUpload
-                                label="Upload Shop Display"
-                                file={files}
-                                onFileSelect={(newFiles) =>
-                                    setFiles(
-                                        Array.isArray(newFiles)
-                                            ? newFiles
-                                            : [...files, newFiles]
-                                    )
-                                }
-                                onFileRemove={setFiles}
-                                accept="all"
-                                multiple={true}
-                                placeholder="Click to add images"
-                                required={true}
-                            />
-                        </View>
-                    )}
-
-                    {/* OTHERS SECTION */}
-                    {reportType === "others" && (
-                        <View style={{ zIndex: 1 }}>
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Reason *</Text>
-                                <TextInput
-                                    style={[styles.input, styles.textArea]}
-                                    placeholder="Describe the reason for this report"
-                                    placeholderTextColor="#999"
-                                    value={otherReasonText}
-                                    onChangeText={setOtherReasonText}
-                                    multiline={true}
-                                    numberOfLines={4}
-                                    textAlignVertical="top"
-                                />
+                                {billCopies.length > 0 && (
+                                    <View style={styles.fileList}>
+                                        {billCopies.map((file, index) => (
+                                            <View
+                                                key={index}
+                                                style={styles.fileItem}
+                                            >
+                                                <Text
+                                                    style={styles.fileName}
+                                                    numberOfLines={1}
+                                                >
+                                                    {file.name}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    onPress={() =>
+                                                        removeBillCopy(index)
+                                                    }
+                                                >
+                                                    <Ionicons
+                                                        name="close-circle"
+                                                        size={20}
+                                                        color="#E4002B"
+                                                    />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
                             </View>
-
-                            <FileUpload
-                                label="Upload File"
-                                file={files.length > 0 ? files[0] : null}
-                                onFileSelect={(file) => setFiles([file])}
-                                onFileRemove={() => setFiles([])}
-                                accept="all"
-                                placeholder="Click to upload file"
-                                required={true}
-                            />
                         </View>
                     )}
 
-                    {/* Location Info */}
-                    <View style={styles.infoCard}>
-                        <Ionicons name="location" size={20} color="#007AFF" />
-                        <Text style={styles.infoText}>
-                            Location will be captured automatically when you
-                            submit
-                        </Text>
-                    </View>
+                    {/* WINDOW DISPLAY */}
+                    {reportType?.value === "Window Display" && (
+                        <View style={styles.fileSection}>
+                            <Text style={styles.label}>
+                                Shop Display Images
+                            </Text>
+                            <TouchableOpacity
+                                style={styles.uploadButton}
+                                onPress={pickShopDisplayImages}
+                            >
+                                <Ionicons
+                                    name="images-outline"
+                                    size={24}
+                                    color="#666"
+                                />
+                                <Text style={styles.uploadButtonText}>
+                                    Upload Images
+                                </Text>
+                            </TouchableOpacity>
+
+                            {shopDisplayImages.length > 0 && (
+                                <View style={styles.imageGrid}>
+                                    {shopDisplayImages.map((file, index) => (
+                                        <View
+                                            key={index}
+                                            style={styles.imageItem}
+                                        >
+                                            <Image
+                                                source={{ uri: file.uri }}
+                                                style={styles.imagePreview}
+                                            />
+                                            <TouchableOpacity
+                                                style={styles.imageRemoveButton}
+                                                onPress={() =>
+                                                    removeShopImage(index)
+                                                }
+                                            >
+                                                <Ionicons
+                                                    name="close-circle"
+                                                    size={24}
+                                                    color="#E4002B"
+                                                />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    {/* OTHERS */}
+                    {reportType?.value === "Others" && (
+                        <View style={styles.fileSection}>
+                            <Text style={styles.label}>Upload Files</Text>
+                            <TouchableOpacity
+                                style={styles.uploadButton}
+                                onPress={pickOtherFiles}
+                            >
+                                <Ionicons
+                                    name="document-attach-outline"
+                                    size={24}
+                                    color="#666"
+                                />
+                                <Text style={styles.uploadButtonText}>
+                                    Upload Files
+                                </Text>
+                            </TouchableOpacity>
+
+                            {otherFiles.length > 0 && (
+                                <View style={styles.fileList}>
+                                    {otherFiles.map((file, index) => (
+                                        <View
+                                            key={index}
+                                            style={styles.fileItem}
+                                        >
+                                            <Text
+                                                style={styles.fileName}
+                                                numberOfLines={1}
+                                            >
+                                                {file.name}
+                                            </Text>
+                                            <TouchableOpacity
+                                                onPress={() =>
+                                                    removeOtherFile(index)
+                                                }
+                                            >
+                                                <Ionicons
+                                                    name="close-circle"
+                                                    size={20}
+                                                    color="#E4002B"
+                                                />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                    )}
 
                     {/* Submit Button */}
                     <TouchableOpacity
@@ -629,29 +839,60 @@ const SubmitReportScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#D9D9D9",
+        backgroundColor: "#fff",
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 16,
+        color: "#666",
     },
     scrollContent: {
-        paddingBottom: Platform.OS === "ios" ? 100 : 90,
+        paddingBottom: 40,
     },
     formContainer: {
         padding: 20,
     },
     campaignInfo: {
-        backgroundColor: "#fff",
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 20,
-        borderLeftWidth: 4,
-        borderLeftColor: "#007AFF",
+        backgroundColor: "#f8f9fa",
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: "#e9ecef",
     },
-    campaignInfoText: {
-        fontSize: 16,
+    retailerInfo: {
+        backgroundColor: "#e3f2fd",
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: "#90caf9",
+    },
+    infoLabel: {
+        fontSize: 12,
+        color: "#666",
+        marginBottom: 4,
+        textTransform: "uppercase",
         fontWeight: "600",
+    },
+    infoValue: {
+        fontSize: 16,
+        fontWeight: "bold",
         color: "#333",
+        marginBottom: 4,
+    },
+    infoSubtext: {
+        fontSize: 13,
+        color: "#666",
+        marginTop: 2,
     },
     inputGroup: {
-        marginBottom: 20,
+        marginBottom: 16,
     },
     label: {
         fontSize: 14,
@@ -659,63 +900,102 @@ const styles = StyleSheet.create({
         color: "#333",
         marginBottom: 8,
     },
+    required: {
+        color: "#dc3545",
+    },
     input: {
         backgroundColor: "#F5F5F5",
-        borderWidth: 1,
         borderColor: "#E0E0E0",
+        borderWidth: 1,
         borderRadius: 10,
-        padding: 15,
-        fontSize: 15,
+        padding: 12,
+        fontSize: 14,
         color: "#333",
+        minHeight: 50,
     },
     textArea: {
         minHeight: 100,
-        paddingTop: 15,
-    },
-    dateRangeContainer: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 20,
-        gap: 10,
-    },
-    dateInputWrapper: {
-        flex: 1,
-    },
-    dateInput: {
-        backgroundColor: "#F5F5F5",
-        borderWidth: 1,
-        borderColor: "#E0E0E0",
-        borderRadius: 10,
-        padding: 15,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
+        textAlignVertical: "top",
     },
     stockSection: {
-        backgroundColor: "#f8f9fa",
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 20,
+        backgroundColor: "#f5f5f5",
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#ddd",
+        marginBottom: 16,
     },
     sectionTitle: {
         fontSize: 16,
         fontWeight: "bold",
-        color: "#333",
-        marginBottom: 15,
+        color: "#E4002B",
+        marginBottom: 16,
     },
-    infoCard: {
+    fileSection: {
+        marginBottom: 16,
+    },
+    uploadButton: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#E8F4FF",
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 20,
-        gap: 10,
+        justifyContent: "center",
+        backgroundColor: "#f5f5f5",
+        borderWidth: 2,
+        borderStyle: "dashed",
+        borderColor: "#ddd",
+        borderRadius: 12,
+        padding: 20,
+        gap: 8,
     },
-    infoText: {
+    uploadButtonText: {
+        fontSize: 14,
+        color: "#666",
+    },
+    fileList: {
+        marginTop: 12,
+        gap: 8,
+    },
+    fileItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: "#f8f9fa",
+        padding: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "#e9ecef",
+    },
+    fileName: {
         flex: 1,
         fontSize: 13,
-        color: "#007AFF",
+        color: "#333",
+        marginRight: 8,
+    },
+    imageGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 12,
+        marginTop: 12,
+    },
+    imageItem: {
+        width: "48%",
+        aspectRatio: 1,
+        position: "relative",
+        borderRadius: 12,
+        overflow: "hidden",
+        borderWidth: 2,
+        borderStyle: "dashed",
+        borderColor: "#ddd",
+    },
+    imagePreview: {
+        width: "100%",
+        height: "100%",
+    },
+    imageRemoveButton: {
+        position: "absolute",
+        top: 4,
+        right: 4,
+        backgroundColor: "white",
+        borderRadius: 12,
     },
     submitButton: {
         backgroundColor: "#E4002B",
@@ -734,4 +1014,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default SubmitReportScreen;
+export default RetailerSubmitReportScreen;

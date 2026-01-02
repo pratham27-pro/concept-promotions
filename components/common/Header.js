@@ -1,23 +1,29 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as RootNavigation from "../../navigation/RootNavigation";
+import { useNavigation } from "@react-navigation/native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const Header = ({
     showBackButton = true,
     onBackPress,
     showLogo = true,
-    logoSource = require("../../assets/supreme.jpg"), // ✅ Default logo
+    logoSource = require("../../assets/supreme.jpg"),
     logoComponent,
     title,
     rightComponent,
     backgroundColor = "#fff",
+    navigation: propNavigation, // Accept navigation as prop
 }) => {
+    // Use hook navigation as fallback
+    const hookNavigation = useNavigation();
+    const navigation = propNavigation || hookNavigation;
+
     const handleBackPress = () => {
         if (onBackPress) {
             onBackPress();
+        } else if (navigation && navigation.canGoBack()) {
+            navigation.goBack();
         } else {
-            RootNavigation.goBack();
+            console.warn("Cannot go back - no navigation history");
         }
     };
 
@@ -38,10 +44,10 @@ const Header = ({
 
             {/* Center - Logo or Title */}
             <View style={styles.centerContainer}>
-                {/* ✅ Custom logo component takes priority */}
+                {/* Custom logo component takes priority */}
                 {logoComponent && logoComponent}
 
-                {/* ✅ Show image logo if no custom component and showLogo is true */}
+                {/* Show image logo if no custom component and showLogo is true */}
                 {!logoComponent && showLogo && (
                     <Image
                         source={logoSource}
@@ -50,7 +56,7 @@ const Header = ({
                     />
                 )}
 
-                {/* ✅ Show title only if no logo */}
+                {/* Show title only if no logo */}
                 {!logoComponent && !showLogo && title && (
                     <Text style={styles.headerTitle}>{title}</Text>
                 )}
@@ -96,7 +102,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     logoImage: {
-        // ✅ New style for logo image
         width: 120,
         height: 40,
     },
