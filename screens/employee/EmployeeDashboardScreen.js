@@ -1,27 +1,26 @@
-import React, { useState, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
+import { useCallback, useState } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
+    ActivityIndicator,
+    Alert,
     Image,
     Linking,
-    Alert,
     Platform,
     RefreshControl,
-    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { useAuth } from "../../context/AuthContext";
 import Header from "../../components/common/Header";
-
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+import { useAuth } from "../../context/AuthContext";
+import { API_BASE_URL } from "../../url/base";
 
 // TODO: One line description to be added from the backend.
 

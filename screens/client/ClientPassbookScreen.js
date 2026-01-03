@@ -1,32 +1,25 @@
-import React, {
-    useState,
-    useCallback,
-    useMemo,
-    useEffect,
-    useRef,
-} from "react";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    Platform,
-    RefreshControl,
     ActivityIndicator,
     Alert,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import Header from "../../components/common/Header";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
+import { API_BASE_URL } from "../../url/base";
 
-const API_BASE_URL = "https://srv1168036.hstgr.cloud/api";
-const PASSBOOK_API =
-    "https://deployed-site-o2d3.onrender.com/api/budgets/passbook";
+const PASSBOOK_API = `${API_BASE_URL}/budgets/passbook`;
 
 const ClientPassbookScreen = () => {
     // ---- API DATA STATE ----

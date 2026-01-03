@@ -1,7 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
     ActivityIndicator,
     Alert,
@@ -17,8 +17,7 @@ import {
 } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 import { useAuth } from "../../context/AuthContext";
-
-const API_BASE_URL = "https://conceptpromotions.in/api";
+import { API_BASE_URL } from "../../url/base";
 
 const LoginScreen = () => {
     const navigation = useNavigation();

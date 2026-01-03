@@ -20,8 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Header from "../../components/common/Header";
 import { useAuth } from "../../context/AuthContext";
 import * as RootNavigation from "../../navigation/RootNavigation";
-
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+import { API_BASE_URL } from "../../url/base";
 
 const EmployeeProfileScreen = () => {
     const { logout } = useAuth();

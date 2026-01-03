@@ -20,8 +20,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Header from "../../components/common/Header";
 import { commonPassbookStyles } from "../../components/styles/passbookStyles";
-
-const API_BASE_URL = "https://conceptpromotions.in/api";
+import { API_BASE_URL } from "../../url/base";
 
 const PassbookScreen = () => {
     // Retailer Info

@@ -19,8 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Header from "../../components/common/Header";
 import { useAuth } from "../../context/AuthContext";
-
-const API_BASE_URL = "https://conceptpromotions.in/api";
+import { API_BASE_URL } from "../../url/base";
 
 const RetailerProfileScreen = () => {
     const { logout } = useAuth();

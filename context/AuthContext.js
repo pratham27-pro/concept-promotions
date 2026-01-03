@@ -1,9 +1,7 @@
 // context/AuthContext.js
-import React, { createContext, useState, useContext, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Alert } from "react-native";
-
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+import { createContext, useContext, useEffect, useState } from "react";
+import { API_BASE_URL } from "../url/base";
 
 const AuthContext = createContext();
 

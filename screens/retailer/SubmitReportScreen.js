@@ -22,8 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // Import reusable components
 import Header from "../../components/common/Header";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
-
-const API_BASE_URL = "https://deployed-site-wt67.onrender.com/api";
+import { API_BASE_URL } from "../../url/base";
 
 const getTodayDate = () => {
     const today = new Date();

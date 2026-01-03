@@ -27,8 +27,7 @@ import PhotoPicker from "../../components/common/PhotoPicker";
 import TermsAndConditions from "../../components/data/TermsAndConditions";
 import { bankOptions, stateOptions } from "../../components/data/common";
 import { useAuth } from "../../context/AuthContext";
-
-const API_BASE_URL = "https://conceptpromotions.in/api";
+import { API_BASE_URL } from "../../url/base";
 
 const CreateRetailerProfileScreen = ({ navigation }) => {
     const { markProfileComplete, refreshProfile } = useAuth(); // ✅ Get these from context

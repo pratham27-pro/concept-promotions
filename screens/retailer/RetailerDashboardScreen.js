@@ -18,8 +18,8 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { API_BASE_URL } from "../../url/base";
 
-const API_BASE_URL = "https://deployed-site-wt67.onrender.com/api";
 const SUPPORT_NUMBER = "1800123456"; // Replace with your actual number
 
 const RetailerDashboardScreen = ({ navigation }) => {

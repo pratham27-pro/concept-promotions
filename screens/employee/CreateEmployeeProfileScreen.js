@@ -32,8 +32,7 @@ import TermsAndConditions from "../../components/data/TermsAndConditions";
 import DatePicker from "../../components/common/DatePicker";
 import { bankOptions, stateOptions } from "../../components/data/common";
 import { useAuth } from "../../context/AuthContext";
-
-const API_BASE_URL = "https://deployed-site-o2d3.onrender.com/api";
+import { API_BASE_URL } from "../../url/base";
 
 const CompleteEmployeeProfileScreen = ({ navigation }) => {
     const { markProfileComplete, userProfile, refreshProfile } = useAuth();

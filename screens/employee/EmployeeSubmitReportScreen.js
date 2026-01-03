@@ -17,8 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
-
-const API_BASE_URL = "https://conceptpromotions.in/api";
+import { API_BASE_URL } from "../../url/base";
 
 const EmployeeSubmitReportScreen = ({ route, navigation }) => {
     // Get campaign from route params

@@ -20,8 +20,7 @@ import * as RootNavigation from "../../navigation/RootNavigation";
 
 import { useAuth } from "../../context/AuthContext";
 import Header from "../../components/common/Header";
-
-const API_BASE_URL = "https://supreme-419p.onrender.com/api";
+import { API_BASE_URL } from "../../url/base";
 
 const ClientHomeScreen = ({ navigation }) => {
     const { userProfile } = useAuth();
