@@ -7,7 +7,14 @@ const AuthContext = createContext();
 
 const mapBackendRoleToAppRole = (backendRole) => {
     // Map all client admin roles to "client"
-    const clientRoles = ["national", "regional", "district", "client"];
+    const clientRoles = [
+        "national",
+        "regional",
+        "district",
+        "state",
+        "client",
+        "client_admin",
+    ];
 
     if (clientRoles.includes(backendRole)) {
         return "client";

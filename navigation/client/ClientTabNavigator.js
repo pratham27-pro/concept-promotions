@@ -12,8 +12,12 @@ const Tab = createBottomTabNavigator();
 
 const ClientTabNavigator = () => {
     const insets = useSafeAreaInsets();
-
     console.log("🎯 ClientTabNavigator rendered");
+    console.log("📱 Screens being rendered:", {
+        home: !!ClientHomeScreen,
+        report: !!ClientReportScreen,
+        passbook: !!ClientPassbookScreen,
+    });
 
     return (
         <Tab.Navigator

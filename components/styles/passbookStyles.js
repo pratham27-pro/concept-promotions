@@ -1,6 +1,18 @@
 import { Platform, StyleSheet } from "react-native";
 
 export const commonPassbookStyles = StyleSheet.create({
+    headerButtons: {
+        flexDirection: "row",
+        gap: 10,
+    },
+    exportButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "rgba(255,255,255,0.25)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
     container: {
         flex: 1,
         backgroundColor: "#f8fafc",

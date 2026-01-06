@@ -2,7 +2,9 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system/legacy";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Sharing from "expo-sharing";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -17,6 +19,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as XLSX from "xlsx";
 import Header from "../../components/common/Header";
 import { commonPassbookStyles } from "../../components/styles/passbookStyles";
 import { API_BASE_URL } from "../../url/base";
@@ -50,6 +53,8 @@ const EmployeePassbookScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [expandedCampaigns, setExpandedCampaigns] = useState({});
     const [showRetailerSelector, setShowRetailerSelector] = useState(false);
+
+    const [exporting, setExporting] = useState(false);
 
     // Fetch data on mount
     useFocusEffect(
@@ -417,6 +422,227 @@ const EmployeePassbookScreen = () => {
         setRefreshing(false);
     };
 
+    // EXPORT TO EXCEL FUNCTION (UPDATED)
+    const handleExportToExcel = async () => {
+        if (!passbookData || displayedCampaigns.length === 0) {
+            Alert.alert("No Data", "No data available to export.");
+            return;
+        }
+
+        try {
+            setExporting(true);
+
+            // ✅ Helper function to parse dates
+            const parseDate = (dateStr) => {
+                if (!dateStr) return null;
+
+                // Handle dd/mm/yyyy format
+                if (typeof dateStr === "string" && dateStr.includes("/")) {
+                    const [day, month, year] = dateStr.split("/");
+                    return new Date(`${year}-${month}-${day}`);
+                }
+
+                return new Date(dateStr);
+            };
+
+            // ✅ Helper function to format date to DD/MM/YYYY
+            const formatDateToDDMMYYYY = (dateStr) => {
+                if (!dateStr || dateStr === "N/A") return "N/A";
+
+                const date = parseDate(dateStr);
+                if (!date || isNaN(date.getTime())) return "N/A";
+
+                const day = String(date.getDate()).padStart(2, "0");
+                const month = String(date.getMonth() + 1).padStart(2, "0");
+                const year = date.getFullYear();
+
+                return `${day}/${month}/${year}`;
+            };
+
+            const rows = [];
+
+            // Row 1: Title
+            rows.push(["EMPLOYEE PASSBOOK REPORT"]);
+
+            // Row 2: Empty
+            rows.push([]);
+
+            // Row 3: EMPLOYEE DETAILS
+            rows.push(["EMPLOYEE DETAILS"]);
+
+            // Row 4: Employee Info
+            rows.push([
+                "Employee Name:",
+                employeeInfo?.name || "N/A",
+                "",
+                "Employee Code:",
+                employeeInfo?.employeeId || "N/A",
+                "",
+                "Outlet Code:",
+                passbookData.outletCode,
+                "",
+                "Outlet Name:",
+                passbookData.shopName,
+            ]);
+
+            // Row 5 & 6: Empty rows
+            rows.push([]);
+            rows.push([]);
+
+            // Row 7: SUMMARY label
+            rows.push(["SUMMARY"]);
+
+            // Row 8: Summary values
+            const summary = getFilteredSummary();
+            rows.push([
+                "Total Budget",
+                `₹${summary.filteredTAR.toLocaleString()}`,
+                "",
+                "Total Paid",
+                `₹${summary.filteredTAPaid.toLocaleString()}`,
+                "",
+                "Total Pending",
+                `₹${summary.filteredTAPending.toLocaleString()}`,
+            ]);
+
+            // Row 9 & 10: Empty rows
+            rows.push([]);
+            rows.push([]);
+
+            // Row 11: Header - ✅ UPDATED to match web (removed State, Outlet Name, Outlet Code)
+            rows.push([
+                "S.No",
+                "Campaign Name",
+                "Client",
+                "Type",
+                "Total Campaign Amount",
+                "Paid",
+                "Balance",
+                "Date",
+                "UTR Number",
+                "Remarks",
+            ]);
+
+            // ✅ Data rows with continuous S.No and running balance calculation
+            let serialNumber = 1;
+
+            displayedCampaigns.forEach((campaign) => {
+                const installments = campaign.installments || [];
+                const totalBudget = campaign.tca;
+
+                if (installments.length === 0) {
+                    // ✅ No installments - show "-" for empty fields
+                    rows.push([
+                        serialNumber++,
+                        campaign.campaignName,
+                        campaign.campaignId?.client || "N/A",
+                        campaign.campaignId?.type || "N/A",
+                        totalBudget,
+                        "-",
+                        totalBudget,
+                        "-",
+                        "-",
+                        "-",
+                    ]);
+                } else {
+                    // ✅ Has installments - Calculate running balance
+                    let cumulativePaid = 0;
+
+                    // Sort installments by date (oldest first) for proper balance calculation
+                    const sortedInstallments = [...installments].sort(
+                        (a, b) => {
+                            const dateA = parseDate(a.dateOfInstallment);
+                            const dateB = parseDate(b.dateOfInstallment);
+                            return dateA - dateB; // Ascending order
+                        }
+                    );
+
+                    sortedInstallments.forEach((inst) => {
+                        const paidAmount = inst.installmentAmount || 0;
+                        cumulativePaid += paidAmount;
+                        const balance = totalBudget - cumulativePaid;
+
+                        rows.push([
+                            serialNumber++,
+                            campaign.campaignName,
+                            campaign.campaignId?.client || "N/A",
+                            campaign.campaignId?.type || "N/A",
+                            totalBudget,
+                            paidAmount, // ✅ Amount paid in THIS installment
+                            balance, // ✅ Balance AFTER this payment
+                            formatDateToDDMMYYYY(inst.dateOfInstallment),
+                            inst.utrNumber || "-",
+                            inst.remarks || "-",
+                        ]);
+                    });
+                }
+            });
+
+            // Create worksheet
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+
+            // Set column widths - ✅ UPDATED for 10 columns
+            ws["!cols"] = [
+                { wch: 8 }, // S.No
+                { wch: 30 }, // Campaign Name (wider)
+                { wch: 20 }, // Client
+                { wch: 15 }, // Type
+                { wch: 22 }, // Total Campaign Amount
+                { wch: 15 }, // Paid
+                { wch: 15 }, // Balance
+                { wch: 18 }, // Date
+                { wch: 18 }, // UTR Number
+                { wch: 20 }, // Remarks
+            ];
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Passbook");
+
+            // Generate base64 string
+            const wbout = XLSX.write(wb, {
+                bookType: "xlsx",
+                type: "base64",
+            });
+
+            // Save file
+            const fileName = `Employee_Passbook_${
+                new Date().toISOString().split("T")[0]
+            }.xlsx`;
+            const fileUri = FileSystem.documentDirectory + fileName;
+
+            // Write file using legacy API
+            await FileSystem.writeAsStringAsync(fileUri, wbout, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+
+            // Check if sharing is available
+            const isAvailable = await Sharing.isAvailableAsync();
+
+            if (isAvailable) {
+                await Sharing.shareAsync(fileUri, {
+                    mimeType:
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    dialogTitle: "Save Employee Passbook Report",
+                    UTI: "com.microsoft.excel.xlsx",
+                });
+                Alert.alert("Success", "Passbook exported successfully!");
+            } else {
+                Alert.alert(
+                    "Success",
+                    `File saved to: ${fileUri}\n\nYou can find it in your app's documents folder.`
+                );
+            }
+
+            console.log("✅ Employee Passbook exported successfully!");
+        } catch (error) {
+            console.error("❌ Export error:", error);
+            Alert.alert("Error", `Failed to export passbook: ${error.message}`);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     // RENDER CAMPAIGN CARD
     const renderCampaignCard = ({ item: campaign, index }) => {
         const isExpanded = expandedCampaigns[campaign._id];
@@ -659,12 +885,35 @@ const EmployeePassbookScreen = () => {
                             </Text>
                         )}
                     </View>
-                    <TouchableOpacity
-                        style={styles.refreshButton}
-                        onPress={onRefresh}
-                    >
-                        <Ionicons name="refresh" size={20} color="#fff" />
-                    </TouchableOpacity>
+                    {/* //export button */}
+                    <View style={styles.headerButtons}>
+                        {passbookData && displayedCampaigns.length > 0 && (
+                            <TouchableOpacity
+                                style={styles.exportButton}
+                                onPress={handleExportToExcel}
+                                disabled={exporting}
+                            >
+                                {exporting ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color="#fff"
+                                    />
+                                ) : (
+                                    <MaterialCommunityIcons
+                                        name="download"
+                                        size={20}
+                                        color="#fff"
+                                    />
+                                )}
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                            style={styles.refreshButton}
+                            onPress={onRefresh}
+                        >
+                            <Ionicons name="refresh" size={20} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Summary Card */}
