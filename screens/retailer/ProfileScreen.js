@@ -48,7 +48,6 @@ const RetailerProfileScreen = () => {
                 return;
             }
 
-            // Fetch profile data
             const response = await fetch(
                 `${API_BASE_URL}/retailer/retailer/me`,
                 {
@@ -63,13 +62,10 @@ const RetailerProfileScreen = () => {
             const responseData = await response.json();
 
             if (response.ok && responseData) {
-                // console.log("📋 Retailer data:", responseData);
-
-                // Calculate profile completion
                 const completion = calculateProfileCompletion(responseData);
                 setRetailer({ ...responseData, profileCompletion: completion });
 
-                // Fetch person photo if it exists
+                // ✅ just fetch URL-based photo
                 await fetchPersonPhoto(token);
             } else {
                 throw new Error(
@@ -86,7 +82,7 @@ const RetailerProfileScreen = () => {
 
     const fetchPersonPhoto = async (token) => {
         try {
-            console.log("🔍 Fetching person photo directly...");
+            console.log("🔍 Fetching person photo URL...");
 
             const response = await fetch(
                 `${API_BASE_URL}/retailer/retailer/image/personPhoto`,
@@ -99,7 +95,6 @@ const RetailerProfileScreen = () => {
 
             console.log("📸 Image response status:", response.status);
 
-            // If 404, image doesn't exist - that's fine
             if (response.status === 404) {
                 console.log("ℹ️ No person photo found for this retailer");
                 return;
@@ -112,74 +107,15 @@ const RetailerProfileScreen = () => {
                 return;
             }
 
-            console.log("✅ Image response OK, processing blob...");
+            const data = await response.json();
 
-            const blob = await response.blob();
-            console.log("📦 Blob received, size:", blob.size, "bytes");
-
-            const reader = new FileReader();
-
-            reader.onloadend = () => {
-                console.log("📖 FileReader finished");
-                let base64Data = reader.result;
-
-                if (!base64Data || !base64Data.startsWith("data:")) {
-                    console.log("❌ Invalid data URI");
-                    return;
-                }
-
-                let base64Content = base64Data.split(",")[1];
-                console.log(
-                    "📝 Base64 preview:",
-                    base64Content.substring(0, 20)
-                );
-
-                // DETECT AND FIX DOUBLE-ENCODING
-                if (base64Content?.startsWith("LzlqLz")) {
-                    console.log(
-                        `🔧 Detected double-encoded image, decoding...`
-                    );
-                    try {
-                        const decodedContent = atob(base64Content);
-
-                        if (
-                            decodedContent.startsWith("/9j/") ||
-                            decodedContent.startsWith("iVBOR")
-                        ) {
-                            base64Content = decodedContent;
-                            console.log(`✅ Successfully decoded`);
-                        }
-                    } catch (decodeError) {
-                        console.error(`❌ Failed to decode:`, decodeError);
-                    }
-                }
-
-                // Detect image type and reconstruct with correct MIME
-                const isJPEG = base64Content?.startsWith("/9j/");
-                const isPNG = base64Content?.startsWith("iVBOR");
-
-                console.log("🔍 Image type - JPEG:", isJPEG, "PNG:", isPNG);
-
-                if (isPNG) {
-                    base64Data = `data:image/png;base64,${base64Content}`;
-                } else if (isJPEG) {
-                    base64Data = `data:image/jpeg;base64,${base64Content}`;
-                } else {
-                    console.warn(`⚠️ Unknown image format, using default`);
-                    base64Data = `data:image/jpeg;base64,${base64Content}`;
-                }
-
-                console.log(`✅ Setting person photo URI`);
-                setPersonPhotoUri(base64Data);
-                console.log(`✅ Person photo loaded successfully!`);
-            };
-
-            reader.onerror = (error) => {
-                console.error("❌ FileReader error:", error);
-            };
-
-            console.log("📖 Starting FileReader...");
-            reader.readAsDataURL(blob);
+            // ✅ backend returns { url, fileName, contentType }
+            if (data.url) {
+                console.log("✅ Person photo URL:", data.url);
+                setPersonPhotoUri(data.url); // direct Cloudinary URL works in <Image />
+            } else {
+                console.log("ℹ️ No url field in image response");
+            }
         } catch (error) {
             console.log("❌ Error in fetchPersonPhoto:", error.message);
             console.error("Full error:", error);

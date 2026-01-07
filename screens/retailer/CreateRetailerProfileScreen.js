@@ -18,6 +18,7 @@ import {
 import DropDownPicker from "react-native-dropdown-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { readAsStringAsync } from "expo-file-system/legacy";
 import PennyTransferModal from "../../components/PennyTransferModal";
 import SuccessModal from "../../components/SuccessModal";
 import DatePicker from "../../components/common/DatePicker";
@@ -299,133 +300,78 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         }
     };
 
-    // ✅ Add this function if you don't have it already
+    // ✅ NEW: Simplified image fetching (Cloudinary URLs)
     const fetchImages = async (token) => {
         try {
-            // First, check which images exist
-            const imageStatusRes = await fetch(
-                `${API_BASE_URL}/retailer/retailer/image-status`,
-                {
-                    headers: { Authorization: `Bearer ${token}` },
-                }
-            );
+            console.log("🔍 Fetching retailer images...");
 
-            if (!imageStatusRes.ok) {
-                console.log("⚠️ Image status endpoint not available");
-                return;
-            }
+            // Define all image types
+            const imageTypes = [
+                "personPhoto",
+                "govtIdPhoto",
+                "outletPhoto",
+                "registrationFormFile",
+            ];
 
-            const imageStatus = await imageStatusRes.json();
-            console.log("🖼️ Image status:", imageStatus);
-
-            // ✅ Fetch person photo
-            if (imageStatus.hasPersonPhoto) {
+            for (const imageType of imageTypes) {
                 try {
-                    const imgRes = await fetch(
-                        `${API_BASE_URL}/retailer/retailer/image/personPhoto`,
+                    const response = await fetch(
+                        `${API_BASE_URL}/retailer/retailer/image/${imageType}`,
                         {
-                            headers: { Authorization: `Bearer ${token}` },
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                            },
                         }
                     );
 
-                    if (imgRes.ok) {
-                        const blob = await imgRes.blob();
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const base64data = reader.result;
-                            setPersonPhoto({ uri: base64data });
-                            setExistingPersonPhoto(base64data);
-                            console.log("✅ Person photo loaded");
-                        };
-                        reader.readAsDataURL(blob);
-                    }
-                } catch (err) {
-                    console.error("❌ Error fetching person photo:", err);
-                }
-            }
+                    if (response.ok) {
+                        const data = await response.json();
 
-            // ✅ Fetch govt ID photo
-            if (imageStatus.hasGovtIdPhoto) {
-                try {
-                    const imgRes = await fetch(
-                        `${API_BASE_URL}/retailer/retailer/image/govtIdPhoto`,
-                        {
-                            headers: { Authorization: `Bearer ${token}` },
+                        // ✅ Backend returns { url, fileName, contentType }
+                        if (data.url) {
+                            console.log(`✅ ${imageType} loaded`);
+
+                            // Set the appropriate state
+                            switch (imageType) {
+                                case "personPhoto":
+                                    setPersonPhoto({
+                                        uri: data.url,
+                                        fromBackend: true,
+                                    });
+                                    setExistingPersonPhoto(data.url);
+                                    break;
+                                case "govtIdPhoto":
+                                    setGovtIdPhoto({
+                                        uri: data.url,
+                                        fromBackend: true,
+                                    });
+                                    setExistingGovtIdPhoto(data.url);
+                                    break;
+                                case "outletPhoto":
+                                    setOutletPhoto({
+                                        uri: data.url,
+                                        fromBackend: true,
+                                    });
+                                    setExistingOutletPhoto(data.url);
+                                    break;
+                                case "registrationFormFile":
+                                    setRegistrationForm({
+                                        uri: data.url,
+                                        fromBackend: true,
+                                    });
+                                    setExistingRegistrationForm(data.url);
+                                    break;
+                            }
                         }
-                    );
-
-                    if (imgRes.ok) {
-                        const blob = await imgRes.blob();
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const base64data = reader.result;
-                            setGovtIdPhoto({ uri: base64data });
-                            setExistingGovtIdPhoto(base64data);
-                            console.log("✅ Govt ID photo loaded");
-                        };
-                        reader.readAsDataURL(blob);
-                    }
-                } catch (err) {
-                    console.error("❌ Error fetching govt ID photo:", err);
-                }
-            }
-
-            // ✅ Fetch outlet photo (THIS WAS MISSING!)
-            if (imageStatus.hasOutletPhoto) {
-                try {
-                    const imgRes = await fetch(
-                        `${API_BASE_URL}/retailer/retailer/image/outletPhoto`,
-                        {
-                            headers: { Authorization: `Bearer ${token}` },
-                        }
-                    );
-
-                    if (imgRes.ok) {
-                        const blob = await imgRes.blob();
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const base64data = reader.result;
-                            setOutletPhoto({ uri: base64data });
-                            setExistingOutletPhoto(base64data);
-                            console.log("✅ Outlet photo loaded");
-                        };
-                        reader.readAsDataURL(blob);
+                    } else if (response.status === 404) {
+                        console.log(`ℹ️ ${imageType} not found`);
                     } else {
                         console.log(
-                            "⚠️ Outlet photo fetch failed:",
-                            imgRes.status
+                            `⚠️ ${imageType} returned status ${response.status}`
                         );
                     }
                 } catch (err) {
-                    console.error("❌ Error fetching outlet photo:", err);
-                }
-            } else {
-                console.log("ℹ️ No outlet photo found on backend");
-            }
-
-            // ✅ Fetch registration form
-            if (imageStatus.hasRegistrationFormFile) {
-                try {
-                    const imgRes = await fetch(
-                        `${API_BASE_URL}/retailer/retailer/image/registrationFormFile`,
-                        {
-                            headers: { Authorization: `Bearer ${token}` },
-                        }
-                    );
-
-                    if (imgRes.ok) {
-                        const blob = await imgRes.blob();
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const base64data = reader.result;
-                            setRegistrationForm({ uri: base64data });
-                            setExistingRegistrationForm(base64data);
-                            console.log("✅ Registration form loaded");
-                        };
-                        reader.readAsDataURL(blob);
-                    }
-                } catch (err) {
-                    console.error("❌ Error fetching registration form:", err);
+                    console.error(`❌ Error fetching ${imageType}:`, err);
                 }
             }
         } catch (error) {
@@ -808,7 +754,6 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
         if (!validateForm()) return;
 
         setSubmitting(true);
-
         try {
             const token = await AsyncStorage.getItem("userToken");
             if (!token) {
@@ -817,38 +762,35 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 return;
             }
 
-            // Always use PATCH endpoint like web version
             const endpoint = `${API_BASE_URL}/retailer/me`;
             const method = "PATCH";
+            console.log(method, endpoint);
 
-            console.log(`📤 ${method} ${endpoint}`);
-
-            // Build FormData (simplified like web)
             const formData = new FormData();
 
             // Personal details
             formData.append("name", name.trim());
             formData.append("contactNo", contactNo);
-            formData.append("email", email.trim() || "");
-            formData.append("altContactNo", altContactNo || "");
+            formData.append("email", email.trim());
+            formData.append("altContactNo", altContactNo);
             formData.append("dob", dob ? formatDateForAPI(dob) : "");
-            formData.append("gender", gender || "");
-            formData.append("govtIdType", govtIdType || "");
-            formData.append("govtIdNumber", govtIdNumber.trim() || "");
+            formData.append("gender", gender);
+            formData.append("govtIdType", govtIdType);
+            formData.append("govtIdNumber", govtIdNumber.trim());
 
             // Shop details
             formData.append("shopName", shopName.trim());
-            formData.append("businessType", businessType || "");
-            formData.append("ownershipType", ownershipType || "");
-            formData.append("GSTNo", gstNo.trim() || "");
+            formData.append("businessType", businessType);
+            formData.append("ownershipType", ownershipType);
+            formData.append("GSTNo", gstNo.trim());
             formData.append("PANCard", panCard.trim());
 
             // Shop address
             formData.append("address", address1.trim());
-            formData.append("address2", address2.trim() || "");
+            formData.append("address2", address2.trim());
             formData.append("city", city.trim());
             formData.append("state", state);
-            formData.append("pincode", String(pincode).trim());
+            formData.append("pincode", String(pincode.trim()));
 
             // Bank details
             formData.append(
@@ -859,69 +801,61 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             formData.append("IFSC", ifsc.trim());
             formData.append("branchName", branchName.trim());
 
-            // T&C and Penny Check
+            // TC and Penny Check
             formData.append("tnc", tnc.toString());
             formData.append("pennyCheck", pennyCheck.toString());
 
-            // Files - only append if new files selected (not existing URLs)
-            if (personPhoto && personPhoto.uri !== existingPersonPhoto) {
-                formData.append("personPhoto", {
-                    uri: personPhoto.uri,
-                    type:
-                        personPhoto.type ||
-                        personPhoto.mimeType ||
-                        "image/jpeg",
-                    name:
-                        personPhoto.fileName ||
-                        personPhoto.name ||
-                        `person_${Date.now()}.jpg`,
-                });
-            }
+            // ✅ UPDATED: File upload helper (React Native compatible)
+            const addFile = async (fieldName, file, existingUrl) => {
+                if (!file) return;
 
-            if (govtIdPhoto && govtIdPhoto.uri !== existingGovtIdPhoto) {
-                formData.append("govtIdPhoto", {
-                    uri: govtIdPhoto.uri,
-                    type:
-                        govtIdPhoto.mimeType ||
-                        govtIdPhoto.type ||
-                        "image/jpeg",
-                    name:
-                        govtIdPhoto.name ||
-                        govtIdPhoto.fileName ||
-                        `govtid_${Date.now()}.jpg`,
-                });
-            }
+                // Skip if it's an existing backend URL
+                if (file.fromBackend || file.uri === existingUrl) {
+                    console.log(`⏭️ Skipping ${fieldName} - already uploaded`);
+                    return;
+                }
 
-            if (outletPhoto && outletPhoto.uri !== existingOutletPhoto) {
-                formData.append("outletPhoto", {
-                    uri: outletPhoto.uri,
-                    type:
-                        outletPhoto.type ||
-                        outletPhoto.mimeType ||
-                        "image/jpeg",
-                    name:
-                        outletPhoto.fileName ||
-                        outletPhoto.name ||
-                        `outlet_${Date.now()}.jpg`,
-                });
-            }
+                try {
+                    let base64Content;
 
-            if (
-                registrationForm &&
-                registrationForm.uri !== existingRegistrationForm
-            ) {
-                formData.append("registrationFormFile", {
-                    uri: registrationForm.uri,
-                    type:
-                        registrationForm.mimeType ||
-                        registrationForm.type ||
-                        "image/jpeg",
-                    name:
-                        registrationForm.name ||
-                        registrationForm.fileName ||
-                        `registration_${Date.now()}.jpg`,
-                });
-            }
+                    if (file.base64) {
+                        base64Content = file.base64;
+                    } else if (file.uri) {
+                        base64Content = await readAsStringAsync(file.uri, {
+                            encoding: "base64",
+                        });
+                    } else {
+                        return;
+                    }
+
+                    const fileName =
+                        file.name ||
+                        file.fileName ||
+                        `${fieldName}_${Date.now()}.jpg`;
+                    const fileType = file.mimeType || file.type || "image/jpeg";
+
+                    // ✅ React Native FormData format
+                    formData.append(fieldName, {
+                        uri: `data:${fileType};base64,${base64Content}`,
+                        type: fileType,
+                        name: fileName,
+                    });
+
+                    console.log(`✅ Added ${fieldName}`);
+                } catch (error) {
+                    console.error(`❌ Error adding ${fieldName}:`, error);
+                }
+            };
+
+            // Add files
+            await addFile("personPhoto", personPhoto, existingPersonPhoto);
+            await addFile("govtIdPhoto", govtIdPhoto, existingGovtIdPhoto);
+            await addFile("outletPhoto", outletPhoto, existingOutletPhoto);
+            await addFile(
+                "registrationFormFile",
+                registrationForm,
+                existingRegistrationForm
+            );
 
             console.log("🚀 Sending request...");
 
@@ -929,36 +863,35 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                 method: method,
                 headers: {
                     Authorization: `Bearer ${token}`,
-                    "Content-Type": "multipart/form-data",
+                    // Don't set Content-Type - FormData sets it automatically
                 },
                 body: formData,
             });
 
-            // console.log("📥 Response status:", response.status);
-
+            console.log("📥 Response status:", response.status);
             const responseText = await response.text();
 
             let data;
             try {
                 data = JSON.parse(responseText);
             } catch (e) {
-                console.error("❌ JSON parse error:", e);
+                console.error("JSON parse error:", e);
                 throw new Error("Invalid server response");
             }
 
             if (!response.ok) {
                 throw new Error(
-                    data.message || `Server error: ${response.status}`
+                    data.message || `Server error (${response.status})`
                 );
             }
 
             console.log("✅ Profile saved successfully!");
 
-            // Update state with response (same logic as web)
+            // Update state with response
             isUpdatingFromBackend.current = true;
-
             const r = data.retailer || data;
 
+            // ... (keep all your existing state update logic)
             if (r.name) setName(r.name);
             if (r.email) setEmail(r.email);
             if (r.altContactNo) setAltContactNo(r.altContactNo);
@@ -992,10 +925,10 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
             if (r.bankDetails) {
                 const newBankDetails = {
-                    bankName: r.bankDetails.bankName || "",
-                    accountNumber: r.bankDetails.accountNumber || "",
-                    ifsc: r.bankDetails.IFSC || "",
-                    branchName: r.bankDetails.branchName || "",
+                    bankName: r.bankDetails.bankName,
+                    accountNumber: r.bankDetails.accountNumber,
+                    ifsc: r.bankDetails.IFSC,
+                    branchName: r.bankDetails.branchName,
                 };
 
                 if (
@@ -1005,13 +938,14 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                     setOtherBankName("");
                 } else {
                     setBankName("Other");
-                    setOtherBankName(r.bankDetails.bankName || "");
+                    setOtherBankName(r.bankDetails.bankName);
                 }
                 setOriginalBankDetails(newBankDetails);
             }
 
             const tncValue = r.tnc || false;
             const pennyValue = r.pennyCheck || false;
+
             setTnc(tncValue);
             setPennyCheck(pennyValue);
 
@@ -1019,7 +953,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
             if (pennyValue) setPennyCheckLocked(true);
 
             setProfileExists(true);
-            if (r._id) setRetailerId(r._id);
+            if (r.id) setRetailerId(r.id);
 
             setTimeout(() => {
                 isUpdatingFromBackend.current = false;
