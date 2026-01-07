@@ -64,24 +64,8 @@ const EmployeeProfileScreen = () => {
             if (response.ok && responseData) {
                 const data = responseData.employee || responseData;
 
-                console.log("📋 Employee data keys:", Object.keys(data));
-                console.log(
-                    "📋 Files object:",
-                    data.files ? "exists" : "missing"
-                );
-
-                // ✅ Check if files object has personPhoto
-                if (data.files?.personPhoto) {
-                    console.log("✅ Person photo found in files object");
-                    await fetchPersonPhotoFromFiles(
-                        token,
-                        data.files.personPhoto
-                    );
-                } else {
-                    console.log("ℹ️ No person photo in files object");
-                    // Try document endpoint as fallback
-                    await fetchPersonPhoto(token);
-                }
+                // ✅ NEW: Fetch person photo (Cloudinary URL)
+                await fetchPersonPhoto(token);
 
                 // Calculate profile completion
                 const completion = calculateProfileCompletion(data);
@@ -99,162 +83,9 @@ const EmployeeProfileScreen = () => {
         }
     };
 
-    const fetchPersonPhotoFromFiles = async (token, photoData) => {
-        try {
-            console.log("🔍 Processing person photo from files object");
-
-            // ✅ Check if photoData is an object with data property
-            if (photoData && typeof photoData === "object" && photoData.data) {
-                console.log("✅ Photo data found in object");
-                console.log("📸 Content type:", photoData.contentType);
-                console.log(
-                    "📸 Data preview:",
-                    photoData.data.substring(0, 50)
-                );
-
-                let base64Content = photoData.data;
-
-                // ✅ DETECT AND FIX DOUBLE-ENCODING
-                if (base64Content?.startsWith("LzlqLz")) {
-                    console.log(
-                        `🔧 Detected double-encoded image, decoding...`
-                    );
-                    try {
-                        const decodedContent = atob(base64Content);
-
-                        if (
-                            decodedContent.startsWith("/9j/") ||
-                            decodedContent.startsWith("iVBOR")
-                        ) {
-                            base64Content = decodedContent;
-                            console.log(`✅ Successfully decoded`);
-                        }
-                    } catch (decodeError) {
-                        console.error(`❌ Failed to decode:`, decodeError);
-                    }
-                }
-
-                // ✅ Detect image type and reconstruct with correct MIME
-                const isJPEG = base64Content?.startsWith("/9j/");
-                const isPNG = base64Content?.startsWith("iVBOR");
-
-                let mimeType = photoData.contentType || "image/jpeg";
-
-                // Override MIME type if detected format doesn't match
-                if (isPNG && !mimeType.includes("png")) {
-                    mimeType = "image/png";
-                    console.log("🔧 Corrected MIME type to image/png");
-                } else if (isJPEG && !mimeType.includes("jpeg")) {
-                    mimeType = "image/jpeg";
-                    console.log("🔧 Corrected MIME type to image/jpeg");
-                }
-
-                const base64Data = `data:${mimeType};base64,${base64Content}`;
-
-                console.log(`✅ Person photo loaded from files object`);
-                console.log(`📸 Final MIME: ${mimeType}`);
-                console.log(
-                    `📸 Data URI preview: ${base64Data.substring(0, 50)}...`
-                );
-
-                setPersonPhotoUri(base64Data);
-                return;
-            }
-
-            // ✅ If photoData is a string (URL or path)
-            if (typeof photoData === "string") {
-                console.log(
-                    "📸 Photo data is a string:",
-                    photoData.substring(0, 50)
-                );
-
-                // If it's already a data URI
-                if (photoData.startsWith("data:")) {
-                    console.log("✅ Already a data URI");
-                    setPersonPhotoUri(photoData);
-                    return;
-                }
-
-                // If it's a URL
-                if (photoData.startsWith("http")) {
-                    console.log("✅ Photo is a URL");
-                    setPersonPhotoUri(photoData);
-                    return;
-                }
-
-                // Otherwise try to fetch it
-                console.log("🔍 Attempting to fetch from path");
-                const endpoint = photoData.startsWith("/")
-                    ? `${API_BASE_URL}${photoData}`
-                    : `${API_BASE_URL}/employee/files/${photoData}`;
-
-                console.log("📥 Fetching from:", endpoint);
-
-                const response = await fetch(endpoint, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const reader = new FileReader();
-
-                    reader.onloadend = () => {
-                        let base64Data = reader.result;
-
-                        if (!base64Data || !base64Data.startsWith("data:")) {
-                            console.log("❌ Invalid data URI");
-                            return;
-                        }
-
-                        let base64Content = base64Data.split(",")[1];
-
-                        // Double-encoding fix
-                        if (base64Content?.startsWith("LzlqLz")) {
-                            try {
-                                const decodedContent = atob(base64Content);
-                                if (
-                                    decodedContent.startsWith("/9j/") ||
-                                    decodedContent.startsWith("iVBOR")
-                                ) {
-                                    base64Content = decodedContent;
-                                }
-                            } catch (decodeError) {
-                                console.error(
-                                    `❌ Failed to decode:`,
-                                    decodeError
-                                );
-                            }
-                        }
-
-                        const isJPEG = base64Content?.startsWith("/9j/");
-                        const isPNG = base64Content?.startsWith("iVBOR");
-
-                        if (isPNG) {
-                            base64Data = `data:image/png;base64,${base64Content}`;
-                        } else if (isJPEG) {
-                            base64Data = `data:image/jpeg;base64,${base64Content}`;
-                        }
-
-                        setPersonPhotoUri(base64Data);
-                    };
-
-                    reader.readAsDataURL(blob);
-                }
-            }
-        } catch (error) {
-            console.log(
-                "❌ Error fetching person photo from files:",
-                error.message
-            );
-            console.error("Full error:", error);
-        }
-    };
-
     const fetchPersonPhoto = async (token) => {
         try {
-            console.log("🔍 Trying document endpoint as fallback...");
+            console.log("🔍 Fetching person photo from backend...");
 
             const response = await fetch(
                 `${API_BASE_URL}/employee/employee/document/personPhoto`,
@@ -265,69 +96,28 @@ const EmployeeProfileScreen = () => {
                 }
             );
 
-            console.log("📸 Document endpoint response:", response.status);
+            console.log("📸 Response status:", response.status);
 
             if (response.ok) {
-                const blob = await response.blob();
-                const reader = new FileReader();
+                const data = await response.json();
 
-                reader.onloadend = () => {
-                    let base64Data = reader.result;
-
-                    if (!base64Data || !base64Data.startsWith("data:")) {
-                        console.log("❌ Invalid data URI");
-                        return;
-                    }
-
-                    let base64Content = base64Data.split(",")[1];
-
-                    // Double-encoding fix
-                    if (base64Content?.startsWith("LzlqLz")) {
-                        console.log(
-                            `🔧 Detected double-encoded image, decoding...`
-                        );
-                        try {
-                            const decodedContent = atob(base64Content);
-
-                            if (
-                                decodedContent.startsWith("/9j/") ||
-                                decodedContent.startsWith("iVBOR")
-                            ) {
-                                base64Content = decodedContent;
-                                console.log(`✅ Successfully decoded`);
-                            }
-                        } catch (decodeError) {
-                            console.error(`❌ Failed to decode:`, decodeError);
-                        }
-                    }
-
-                    const isJPEG = base64Content?.startsWith("/9j/");
-                    const isPNG = base64Content?.startsWith("iVBOR");
-
-                    if (isPNG) {
-                        base64Data = `data:image/png;base64,${base64Content}`;
-                    } else if (isJPEG) {
-                        base64Data = `data:image/jpeg;base64,${base64Content}`;
-                    } else {
-                        console.warn(`⚠️ Unknown image format`);
-                    }
-
+                // ✅ Backend returns { url, fileName, contentType }
+                if (data.url) {
                     console.log(
-                        `✅ Person photo loaded from document endpoint`
+                        "✅ Person photo URL received:",
+                        data.url.substring(0, 80) + "..."
                     );
-                    setPersonPhotoUri(base64Data);
-                };
-
-                reader.onerror = (error) => {
-                    console.error("❌ FileReader error:", error);
-                };
-
-                reader.readAsDataURL(blob);
+                    setPersonPhotoUri(data.url); // ✅ Direct Cloudinary URL
+                } else {
+                    console.log("ℹ️ No person photo URL in response");
+                }
+            } else if (response.status === 404) {
+                console.log("ℹ️ No person photo found (404)");
             } else {
-                console.log("ℹ️ No person photo found at document endpoint");
+                console.log("⚠️ Unexpected status:", response.status);
             }
         } catch (error) {
-            console.log("❌ Error with document endpoint:", error.message);
+            console.error("❌ Error fetching person photo:", error);
         }
     };
 
