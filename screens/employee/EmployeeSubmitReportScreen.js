@@ -7,7 +7,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
     Alert,
-    Image,
     ScrollView,
     StyleSheet,
     Text,
@@ -16,6 +15,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import GeoTagCamera from "../../components/common/GeoTagCamera";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
 import { API_BASE_URL } from "../../url/base";
 
@@ -500,49 +500,99 @@ const EmployeeSubmitReportScreen = ({ route, navigation }) => {
                     formData.append("productType", productType.value);
                     formData.append("quantity", quantity);
 
-                    billCopies.forEach((file) => {
+                    for (let i = 0; i < billCopies.length; i++) {
+                        const file = billCopies[i];
                         formData.append("billCopies", {
                             uri: file.uri,
                             type: file.mimeType || "application/pdf",
-                            name: file.name || "bill.pdf",
+                            name: file.name || `bill_${i}.pdf`,
                         });
-                    });
+                        console.log(`✅ Bill copy ${i + 1} added`);
+                    }
                 }
 
                 if (reportType.value === "Window Display") {
-                    shopDisplayImages.forEach((file) => {
+                    for (let i = 0; i < shopDisplayImages.length; i++) {
+                        const photo = shopDisplayImages[i];
+
+                        // Append photo
                         formData.append("shopDisplayImages", {
-                            uri: file.uri,
-                            type: file.mimeType || "image/jpeg",
-                            name: file.fileName || "image.jpg",
+                            uri: photo.uri,
+                            type: photo.type || "image/jpeg",
+                            name: photo.name || `image_${i}.jpg`,
                         });
-                    });
+
+                        // ✅ Append geotag metadata if exists
+                        if (photo.geotag) {
+                            formData.append(
+                                `shopDisplayImageMetadata[${i}]`,
+                                JSON.stringify(photo.geotag)
+                            );
+                            console.log(
+                                `✅ Shop image ${i + 1} added with geotag:`,
+                                {
+                                    lat: photo.geotag.latitude,
+                                    lon: photo.geotag.longitude,
+                                    typeof_latitude:
+                                        typeof photo.geotag.latitude,
+                                    full_geotag: photo.geotag,
+                                }
+                            );
+                        } else {
+                            console.log(
+                                `✅ Shop image ${i + 1} added (no geotag)`
+                            );
+                        }
+                    }
                 }
 
                 if (reportType.value === "Others") {
-                    otherFiles.forEach((file) => {
+                    for (let i = 0; i < otherFiles.length; i++) {
+                        const file = otherFiles[i];
                         formData.append("files", {
                             uri: file.uri,
                             type: file.mimeType || "application/octet-stream",
-                            name: file.name || "file",
+                            name: file.name || `file_${i}`,
                         });
-                    });
+                        console.log(`✅ Other file ${i + 1} added`);
+                    }
                 }
             }
 
             const token = await AsyncStorage.getItem("userToken");
-            const response = await axios.post(
-                `${API_BASE_URL}/reports/create`,
-                formData,
-                {
-                    headers: {
-                        "Content-Type": "multipart/form-data",
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
 
-            if (response.data.success) {
+            console.log("🚀 Starting upload...");
+
+            // ✅ Use fetch instead of axios
+            const response = await fetch(`${API_BASE_URL}/reports/create-geo`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    // Don't set Content-Type - let fetch handle it
+                },
+                body: formData,
+            });
+
+            console.log("📥 Response status:", response.status);
+
+            const responseText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("JSON parse error:", e);
+                throw new Error("Invalid server response");
+            }
+
+            console.log("✅ Response:", data);
+
+            if (!response.ok) {
+                throw new Error(
+                    data.message || `Server error (${response.status})`
+                );
+            }
+
+            if (data.success) {
                 Alert.alert("Success", "Report submitted successfully!", [
                     {
                         text: "OK",
@@ -551,11 +601,14 @@ const EmployeeSubmitReportScreen = ({ route, navigation }) => {
                 ]);
             }
         } catch (err) {
-            console.error("Submission error:", err);
-            Alert.alert(
-                "Error",
-                err.response?.data?.message || "Failed to submit report"
-            );
+            console.error("❌ Submission error:", err);
+
+            let errorMessage = "Failed to submit report";
+            if (err.message) {
+                errorMessage = err.message;
+            }
+
+            Alert.alert("Error", errorMessage);
         } finally {
             setSubmitting(false);
         }
@@ -1084,72 +1137,17 @@ const EmployeeSubmitReportScreen = ({ route, navigation }) => {
                                         </View>
                                     )}
 
-                                    {/* WINDOW DISPLAY */}
+                                    {/* WINDOW DISPLAY - WITH GEOTAG */}
                                     {reportType?.value === "Window Display" && (
-                                        <View style={styles.fileSection}>
-                                            <Text style={styles.label}>
-                                                Shop Display Images
-                                            </Text>
-                                            <TouchableOpacity
-                                                style={styles.uploadButton}
-                                                onPress={pickShopDisplayImages}
-                                            >
-                                                <Ionicons
-                                                    name="images-outline"
-                                                    size={24}
-                                                    color="#666"
-                                                />
-                                                <Text
-                                                    style={
-                                                        styles.uploadButtonText
-                                                    }
-                                                >
-                                                    Upload Images
-                                                </Text>
-                                            </TouchableOpacity>
-
-                                            {shopDisplayImages.length > 0 && (
-                                                <View style={styles.imageGrid}>
-                                                    {shopDisplayImages.map(
-                                                        (file, index) => (
-                                                            <View
-                                                                key={index}
-                                                                style={
-                                                                    styles.imageItem
-                                                                }
-                                                            >
-                                                                <Image
-                                                                    source={{
-                                                                        uri: file.uri,
-                                                                    }}
-                                                                    style={
-                                                                        styles.imagePreview
-                                                                    }
-                                                                />
-                                                                <TouchableOpacity
-                                                                    style={
-                                                                        styles.imageRemoveButton
-                                                                    }
-                                                                    onPress={() =>
-                                                                        removeShopImage(
-                                                                            index
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Ionicons
-                                                                        name="close-circle"
-                                                                        size={
-                                                                            24
-                                                                        }
-                                                                        color="#E4002B"
-                                                                    />
-                                                                </TouchableOpacity>
-                                                            </View>
-                                                        )
-                                                    )}
-                                                </View>
-                                            )}
-                                        </View>
+                                        <GeoTagCamera
+                                            label="Take Geotagged Shop Display Photos"
+                                            photos={shopDisplayImages}
+                                            onPhotosChange={
+                                                setShopDisplayImages
+                                            }
+                                            maxPhotos={5}
+                                            required={true}
+                                        />
                                     )}
 
                                     {/* OTHERS */}

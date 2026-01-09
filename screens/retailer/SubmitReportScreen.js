@@ -2,14 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import * as DocumentPicker from "expo-document-picker";
-import * as ImageManipulator from "expo-image-manipulator";
-import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Image,
     ScrollView,
     StyleSheet,
     Text,
@@ -20,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Import reusable components
+import GeoTagCamera from "../../components/common/GeoTagCamera"; // ✅ ADD THIS
 import Header from "../../components/common/Header";
 import SearchableDropdown from "../../components/common/SearchableDropdown";
 import { API_BASE_URL } from "../../url/base";
@@ -90,7 +88,7 @@ const RetailerSubmitReportScreen = ({ route, navigation }) => {
     const [quantity, setQuantity] = useState("");
 
     // Files
-    const [shopDisplayImages, setShopDisplayImages] = useState([]);
+    const [shopDisplayImages, setShopDisplayImages] = useState([]); // ✅ Now handles geotag data
     const [billCopies, setBillCopies] = useState([]);
     const [otherFiles, setOtherFiles] = useState([]);
 
@@ -169,36 +167,8 @@ const RetailerSubmitReportScreen = ({ route, navigation }) => {
     };
 
     // ===============================
-    // IMAGE COMPRESSION HELPER
+    // REMOVED: pickShopDisplayImages - Now using GeoTagCamera
     // ===============================
-    const compressImage = async (imageUri) => {
-        try {
-            const manipResult = await ImageManipulator.manipulateAsync(
-                imageUri,
-                [{ resize: { width: 1024 } }], // Resize to max 1024px width
-                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-            );
-            return manipResult.uri;
-        } catch (error) {
-            console.error("Error compressing image:", error);
-            return imageUri; // Return original if compression fails
-        }
-    };
-
-    // ===============================
-    // FILE HANDLERS
-    // ===============================
-    const pickShopDisplayImages = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsMultipleSelection: true,
-            quality: 0.8,
-        });
-
-        if (!result.canceled) {
-            setShopDisplayImages((prev) => [...prev, ...result.assets]);
-        }
-    };
 
     const pickBillCopies = async () => {
         const result = await DocumentPicker.getDocumentAsync({
@@ -222,9 +192,7 @@ const RetailerSubmitReportScreen = ({ route, navigation }) => {
         }
     };
 
-    const removeShopImage = (index) => {
-        setShopDisplayImages((prev) => prev.filter((_, i) => i !== index));
-    };
+    // REMOVED: removeShopImage - Handled by GeoTagCamera
 
     const removeBillCopy = (index) => {
         setBillCopies((prev) => prev.filter((_, i) => i !== index));
@@ -238,6 +206,7 @@ const RetailerSubmitReportScreen = ({ route, navigation }) => {
     // VALIDATION & SUBMISSION
     // ===============================
     const handleSubmit = async () => {
+        const token = await AsyncStorage.getItem("userToken");
         // Validation
         if (!reportType) {
             Alert.alert("Error", "Please select a report type");
@@ -331,64 +300,96 @@ const RetailerSubmitReportScreen = ({ route, navigation }) => {
                 formData.append("productType", productType.value);
                 formData.append("quantity", quantity);
 
-                for (const file of billCopies) {
+                for (let i = 0; i < billCopies.length; i++) {
+                    const file = billCopies[i];
                     formData.append("billCopies", {
                         uri: file.uri,
                         type: file.mimeType || "application/pdf",
-                        name: file.name || "bill.pdf",
+                        name: file.name || `bill_${i}.pdf`,
                     });
+                    console.log(`✅ Bill copy ${i + 1} added`);
                 }
             }
 
-            // Window Display images - WITH COMPRESSION
+            // ✅ Window Display images - WITH GEOTAG (same as employee)
             if (reportType.value === "Window Display") {
                 console.log(
-                    `🖼️ Compressing ${shopDisplayImages.length} images...`
+                    `🖼️ Processing ${shopDisplayImages.length} geotagged images...`
                 );
 
                 for (let i = 0; i < shopDisplayImages.length; i++) {
-                    const file = shopDisplayImages[i];
-                    const compressedUri = await compressImage(file.uri);
+                    const photo = shopDisplayImages[i];
 
+                    // Append photo
                     formData.append("shopDisplayImages", {
-                        uri: compressedUri,
-                        type: "image/jpeg",
-                        name: `image_${i}.jpg`,
+                        uri: photo.uri,
+                        type: photo.type || "image/jpeg",
+                        name: photo.name || `image_${i}.jpg`,
                     });
-                    console.log(`✅ Image ${i + 1} compressed and added`);
+
+                    // ✅ Append geotag metadata if exists
+                    if (photo.geotag) {
+                        formData.append(
+                            `shopDisplayImageMetadata[${i}]`,
+                            JSON.stringify(photo.geotag)
+                        );
+                        console.log(
+                            `✅ Shop image ${i + 1} added with geotag:`,
+                            {
+                                lat: photo.geotag.latitude,
+                                lon: photo.geotag.longitude,
+                                typeoflatitude: typeof photo.geotag.latitude,
+                                fullgeotag: photo.geotag,
+                            }
+                        );
+                    } else {
+                        console.log(`✅ Shop image ${i + 1} added (no geotag)`);
+                    }
                 }
             }
 
             // Others files
             if (reportType.value === "Others") {
-                for (const file of otherFiles) {
+                for (let i = 0; i < otherFiles.length; i++) {
+                    const file = otherFiles[i];
                     formData.append("files", {
                         uri: file.uri,
                         type: file.mimeType || "application/octet-stream",
-                        name: file.name || "file",
+                        name: file.name || `file_${i}`,
                     });
+                    console.log(`✅ Other file ${i + 1} added`);
                 }
             }
 
-            const token = await AsyncStorage.getItem("userToken");
+            // ✅ Use endpoint that supports geotag (create-geo)
+            const response = await fetch(`${API_BASE_URL}/reports/create-geo`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            });
 
-            console.log("🚀 Starting upload...");
+            console.log("📥 Response status:", response.status);
 
-            const response = await axios.post(
-                `${API_BASE_URL}/reports/create`,
-                formData,
-                {
-                    headers: {
-                        "Content-Type": "multipart/form-data",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    timeout: 180000, // 3 minutes timeout
-                }
-            );
+            const responseText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("JSON parse error:", e);
+                throw new Error("Invalid server response");
+            }
 
-            console.log("✅ Response:", response.data);
+            console.log("✅ Response:", data);
 
-            if (response.data.success) {
+            if (!response.ok) {
+                throw new Error(
+                    data.message || `Server error (${response.status})`
+                );
+            }
+
+            if (data.success) {
                 Alert.alert("Success", "Report submitted successfully!", [
                     {
                         text: "OK",
@@ -414,15 +415,11 @@ const RetailerSubmitReportScreen = ({ route, navigation }) => {
             }
         } catch (err) {
             console.error("❌ Submission error:", err);
-            console.error("❌ Error response:", err.response?.data);
 
             let errorMessage = "Failed to submit report";
 
-            if (err.code === "ECONNABORTED") {
-                errorMessage =
-                    "Upload timeout. Please try with fewer or smaller images.";
-            } else if (err.response?.data?.message) {
-                errorMessage = err.response.data.message;
+            if (err.message) {
+                errorMessage = err.message;
             }
 
             Alert.alert("Error", errorMessage);
@@ -713,54 +710,15 @@ const RetailerSubmitReportScreen = ({ route, navigation }) => {
                         </View>
                     )}
 
-                    {/* WINDOW DISPLAY */}
+                    {/* ✅ WINDOW DISPLAY - REPLACED WITH GeoTagCamera */}
                     {reportType?.value === "Window Display" && (
-                        <View style={styles.fileSection}>
-                            <Text style={styles.label}>
-                                Shop Display Images
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.uploadButton}
-                                onPress={pickShopDisplayImages}
-                            >
-                                <Ionicons
-                                    name="images-outline"
-                                    size={24}
-                                    color="#666"
-                                />
-                                <Text style={styles.uploadButtonText}>
-                                    Upload Images
-                                </Text>
-                            </TouchableOpacity>
-
-                            {shopDisplayImages.length > 0 && (
-                                <View style={styles.imageGrid}>
-                                    {shopDisplayImages.map((file, index) => (
-                                        <View
-                                            key={index}
-                                            style={styles.imageItem}
-                                        >
-                                            <Image
-                                                source={{ uri: file.uri }}
-                                                style={styles.imagePreview}
-                                            />
-                                            <TouchableOpacity
-                                                style={styles.imageRemoveButton}
-                                                onPress={() =>
-                                                    removeShopImage(index)
-                                                }
-                                            >
-                                                <Ionicons
-                                                    name="close-circle"
-                                                    size={24}
-                                                    color="#E4002B"
-                                                />
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                </View>
-                            )}
-                        </View>
+                        <GeoTagCamera
+                            label="Take Geotagged Shop Display Photos"
+                            photos={shopDisplayImages}
+                            onPhotosChange={setShopDisplayImages}
+                            maxPhotos={5}
+                            required={true}
+                        />
                     )}
 
                     {/* OTHERS */}
@@ -968,33 +926,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: "#333",
         marginRight: 8,
-    },
-    imageGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 12,
-        marginTop: 12,
-    },
-    imageItem: {
-        width: "48%",
-        aspectRatio: 1,
-        position: "relative",
-        borderRadius: 12,
-        overflow: "hidden",
-        borderWidth: 2,
-        borderStyle: "dashed",
-        borderColor: "#ddd",
-    },
-    imagePreview: {
-        width: "100%",
-        height: "100%",
-    },
-    imageRemoveButton: {
-        position: "absolute",
-        top: 4,
-        right: 4,
-        backgroundColor: "white",
-        borderRadius: 12,
     },
     submitButton: {
         backgroundColor: "#E4002B",
