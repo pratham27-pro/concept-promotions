@@ -18,6 +18,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Header from "../../components/common/Header";
 import { API_BASE_URL } from "../../url/base";
 
 const SUPPORT_NUMBER = "1800123456"; // Replace with your actual number
@@ -258,12 +259,7 @@ const RetailerDashboardScreen = ({ navigation }) => {
                 }
             >
                 {/* Logo Section */}
-                <View style={styles.logoContainer}>
-                    <View style={styles.logoPlaceholder}>
-                        <Text style={styles.logoText}>CONCEPT</Text>
-                        <Text style={styles.logoSubtext}>PROMOTIONS</Text>
-                    </View>
-                </View>
+                <Header showBackButton={false} />
 
                 {/* Header Section */}
                 <View style={styles.header}>

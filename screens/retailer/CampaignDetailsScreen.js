@@ -52,8 +52,9 @@ const RetailerCampaignDetailsScreen = ({ route, navigation }) => {
                 isActive: initialCampaign.isActive,
                 status: initialCampaign.retailerStatus?.status || null,
                 assignedEmployees: initialCampaign.assignedEmployees || [],
-                gratification: initialCampaign.gratification || null,
+                gratification: initialCampaign.gratification || {},
                 rawData: initialCampaign,
+                info: initialCampaign.info || {},
             };
 
             setCampaignData(transformedData);
