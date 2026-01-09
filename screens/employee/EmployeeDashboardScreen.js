@@ -222,7 +222,7 @@ const EmployeeDashboardScreen = ({ navigation }) => {
 
         // Navigate with the full raw campaign data
         navigation.navigate("EmployeeCampaignDetails", {
-            campaign: campaign.rawData || campaign,
+            campaign: campaign.fullData || campaign,
         });
     };
 

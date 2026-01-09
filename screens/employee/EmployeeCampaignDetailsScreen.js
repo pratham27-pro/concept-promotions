@@ -19,21 +19,28 @@ import Header from "../../components/common/Header";
 const EmployeeCampaignDetailsScreen = ({ route }) => {
     const navigation = useNavigation();
     const [campaignData, setCampaignData] = useState(null);
+    const [loading, setLoading] = useState(true); // ✅ Add loading state
 
     useEffect(() => {
-        // Extract campaign from route params
         if (route.params?.campaign) {
-            const campaign = route.params.campaign;
+            transformCampaignData(route.params.campaign);
+        }
+    }, [route.params]);
+
+    // ✅ SIMPLIFIED - Just transform the campaign data we receive
+    const transformCampaignData = (campaign) => {
+        try {
+            setLoading(true);
+
             console.log("📋 Campaign received:", campaign);
+            console.log("📋 Campaign.info:", campaign.info);
+            console.log("📋 Campaign.gratification:", campaign.gratification);
 
             // Transform the campaign data to a consistent format
             const transformedCampaign = {
                 id: campaign.id || campaign._id,
                 name: campaign.title || campaign.name || "Campaign",
-                client:
-                    campaign.client ||
-                    campaign.description?.split(" - ")[1] ||
-                    "N/A",
+                client: campaign.client || "N/A",
                 type: campaign.campaignType || campaign.type || "Campaign",
                 startDate: formatDate(
                     campaign.startDate || campaign.campaignStartDate
@@ -41,19 +48,40 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
                 endDate: formatDate(
                     campaign.endDate || campaign.campaignEndDate
                 ),
+                // ✅ Preserve original date fields for other screens
+                campaignStartDate:
+                    campaign.startDate || campaign.campaignStartDate,
+                campaignEndDate: campaign.endDate || campaign.campaignEndDate,
+
                 regions: campaign.regions || [],
                 states: campaign.states || [],
                 status: campaign.status,
                 assignedEmployees: campaign.assignedEmployees || [],
+                assignedRetailers: campaign.assignedRetailers || [],
                 retailerName: getRetailerName(campaign),
                 location: getLocation(campaign),
-                rawData: campaign.rawData || campaign, // Keep original data
+
+                // ✅ CRITICAL - These should now have data!
+                info: campaign.info || {},
+                gratification: campaign.gratification || {},
+
+                rawData: campaign, // Keep original data
             };
 
             setCampaignData(transformedCampaign);
             console.log("✅ Transformed campaign:", transformedCampaign);
+            console.log("✅ Info field:", transformedCampaign.info);
+            console.log(
+                "✅ Gratification field:",
+                transformedCampaign.gratification
+            );
+        } catch (error) {
+            console.error("❌ Error transforming campaign:", error);
+            Alert.alert("Error", "Failed to load campaign details");
+        } finally {
+            setLoading(false);
         }
-    }, [route.params]);
+    };
 
     const formatDate = (dateString) => {
         if (!dateString) return "N/A";
@@ -97,6 +125,23 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
         }
 
         return "Location not specified";
+    };
+
+    const handleInfo = () => {
+        if (!campaignData) return;
+        navigation.navigate("EmployeeCampaignInfo", { campaign: campaignData });
+    };
+
+    const handleGratification = () => {
+        if (!campaignData) return;
+        navigation.navigate("EmployeeCampaignGratification", {
+            campaign: campaignData,
+        });
+    };
+
+    const handleViewReport = () => {
+        if (!campaignData) return;
+        navigation.navigate("EmployeeViewReports", { campaign: campaignData });
     };
 
     const handleButtonPress = (buttonName) => {
@@ -195,17 +240,17 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
                     )}
 
                     {/* Location Info */}
-                    {campaignData.location && (
+                    {/* {campaignData.location && (
                         <View style={styles.locationCard}>
                             <Text style={styles.locationLabel}>Location:</Text>
                             <Text style={styles.locationText}>
                                 📍 {campaignData.location}
                             </Text>
                         </View>
-                    )}
+                    )} */}
 
                     {/* Assigned Employees (if any) */}
-                    {campaignData.assignedEmployees?.length > 0 && (
+                    {/* {campaignData.assignedEmployees?.length > 0 && (
                         <View style={styles.employeesCard}>
                             <Text style={styles.employeesLabel}>
                                 Team Members (
@@ -225,7 +270,7 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
                                 )
                             )}
                         </View>
-                    )}
+                    )} */}
                 </View>
 
                 {/* Grid Buttons - Using GridButton component */}
@@ -234,20 +279,20 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
                     <GridButton
                         title="Info"
                         icon="information-circle-outline"
-                        onPress={() => handleButtonPress("Info")}
+                        onPress={handleInfo}
                     />
 
                     <GridButton
                         title="Gratification"
                         icon="gift-outline"
-                        onPress={() => handleButtonPress("Gratification")}
+                        onPress={handleGratification}
                     />
 
                     {/* Row 2 */}
                     <GridButton
                         title="View Report"
                         icon="document-text-outline"
-                        onPress={() => handleButtonPress("View Report")}
+                        onPress={handleViewReport}
                     />
 
                     <GridButton
