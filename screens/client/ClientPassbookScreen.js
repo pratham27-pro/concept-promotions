@@ -4,16 +4,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Keyboard,
     Platform,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -33,10 +35,7 @@ const ClientPassbookScreen = () => {
     const [exporting, setExporting] = useState(false);
 
     // ---- FILTER STATE ----
-    const [campaignStatus, setCampaignStatus] = useState({
-        label: "Active",
-        value: "active",
-    });
+    const [campaignStatus, setCampaignStatus] = useState("active");
     const [selectedStates, setSelectedStates] = useState([]);
     const [selectedCampaigns, setSelectedCampaigns] = useState([]);
     const [selectedRetailers, setSelectedRetailers] = useState([]);
@@ -50,24 +49,6 @@ const ClientPassbookScreen = () => {
     // ---- PAGINATION STATE ----
     const [currentPage, setCurrentPage] = useState(1);
     const [limit] = useState(10);
-
-    // ---- REFS FOR STABLE STATE ACCESS ----
-    const selectedStatesRef = useRef([]);
-    const selectedCampaignsRef = useRef([]);
-    const selectedRetailersRef = useRef([]);
-
-    // Update refs whenever state changes
-    useEffect(() => {
-        selectedStatesRef.current = selectedStates;
-    }, [selectedStates]);
-
-    useEffect(() => {
-        selectedCampaignsRef.current = selectedCampaigns;
-    }, [selectedCampaigns]);
-
-    useEffect(() => {
-        selectedRetailersRef.current = selectedRetailers;
-    }, [selectedRetailers]);
 
     // ---- DROPDOWN ITEMS STATE ----
     const [stateItems, setStateItems] = useState([]);
@@ -84,6 +65,41 @@ const ClientPassbookScreen = () => {
     const [stateOpen, setStateOpen] = useState(false);
     const [campaignOpen, setCampaignOpen] = useState(false);
     const [retailerOpen, setRetailerOpen] = useState(false);
+
+    const closeAllDropdowns = () => {
+        if (statusOpen || stateOpen || campaignOpen || retailerOpen) {
+            setStatusOpen(false);
+            setStateOpen(false);
+            setCampaignOpen(false);
+            setRetailerOpen(false);
+            Keyboard.dismiss();
+        }
+    };
+
+    // ✅ CALLBACKS TO CLOSE OTHER DROPDOWNS
+    const handleStatusOpen = () => {
+        setStateOpen(false);
+        setCampaignOpen(false);
+        setRetailerOpen(false);
+    };
+
+    const handleStateOpen = () => {
+        setStatusOpen(false);
+        setCampaignOpen(false);
+        setRetailerOpen(false);
+    };
+
+    const handleCampaignOpen = () => {
+        setStatusOpen(false);
+        setStateOpen(false);
+        setRetailerOpen(false);
+    };
+
+    const handleRetailerOpen = () => {
+        setStatusOpen(false);
+        setStateOpen(false);
+        setCampaignOpen(false);
+    };
 
     // ---- FETCH DATA FROM API ----
     useFocusEffect(
@@ -142,8 +158,8 @@ const ClientPassbookScreen = () => {
 
     // ---- FILTER CAMPAIGNS BY STATUS ----
     const filteredCampaigns = useMemo(() => {
-        if (campaignStatus.value === "all") return allCampaigns;
-        const isActive = campaignStatus.value === "active";
+        if (campaignStatus === "all") return allCampaigns;
+        const isActive = campaignStatus === "active";
         return allCampaigns.filter((c) => c.isActive === isActive);
     }, [allCampaigns, campaignStatus]);
 
@@ -279,20 +295,17 @@ const ClientPassbookScreen = () => {
 
                 // Apply State Filter
                 if (selectedStates.length > 0) {
-                    const stateValues = selectedStates.map((s) => s.value);
-                    if (!stateValues.includes(state)) return;
+                    if (!selectedStates.includes(state)) return;
                 }
 
                 // Apply Campaign Filter
                 if (selectedCampaigns.length > 0) {
-                    const campaignIds = selectedCampaigns.map((c) => c.value);
-                    if (!campaignIds.includes(campaign._id)) return;
+                    if (!selectedCampaigns.includes(campaign._id)) return;
                 }
 
                 // Apply Retailer Filter
                 if (selectedRetailers.length > 0) {
-                    const retailerIds = selectedRetailers.map((r) => r.value);
-                    if (!retailerIds.includes(retailerId)) return;
+                    if (!selectedRetailers.includes(retailerId)) return;
                 }
 
                 // Find budget data for this retailer
@@ -479,33 +492,6 @@ const ClientPassbookScreen = () => {
         try {
             setExporting(true);
 
-            // ✅ Helper function to parse dates
-            const parseDate = (dateStr) => {
-                if (!dateStr) return null;
-
-                // Handle dd/mm/yyyy format
-                if (typeof dateStr === "string" && dateStr.includes("/")) {
-                    const [day, month, year] = dateStr.split("/");
-                    return new Date(`${year}-${month}-${day}`);
-                }
-
-                return new Date(dateStr);
-            };
-
-            // ✅ Helper function to format date to DD/MM/YYYY
-            const formatDateToDDMMYYYY = (dateStr) => {
-                if (!dateStr || dateStr === "N/A") return "N/A";
-
-                const date = parseDate(dateStr);
-                if (!date || isNaN(date.getTime())) return "N/A";
-
-                const day = String(date.getDate()).padStart(2, "0");
-                const month = String(date.getMonth() + 1).padStart(2, "0");
-                const year = date.getFullYear();
-
-                return `${day}/${month}/${year}`;
-            };
-
             const rows = [];
 
             // Row 1: Title
@@ -548,7 +534,7 @@ const ClientPassbookScreen = () => {
                 "Remarks",
             ]);
 
-            // ✅ Data rows with continuous S.No and running balance calculation
+            // Data rows with continuous S.No and running balance calculation
             let serialNumber = 1;
 
             allDisplayData.forEach((record) => {
@@ -556,7 +542,6 @@ const ClientPassbookScreen = () => {
                 const totalBudget = record.tca;
 
                 if (installments.length === 0) {
-                    // ✅ No installments - show "-" for empty fields
                     rows.push([
                         serialNumber++,
                         record.state,
@@ -571,15 +556,14 @@ const ClientPassbookScreen = () => {
                         "-",
                     ]);
                 } else {
-                    // ✅ Has installments - Calculate running balance
                     let cumulativePaid = 0;
 
-                    // Sort installments by date (oldest first) for proper balance calculation
+                    // Sort installments by date (oldest first)
                     const sortedInstallments = [...installments].sort(
                         (a, b) => {
                             const dateA = parseDate(a.dateOfInstallment);
                             const dateB = parseDate(b.dateOfInstallment);
-                            return dateA - dateB; // Ascending order
+                            return dateA - dateB;
                         }
                     );
 
@@ -595,8 +579,8 @@ const ClientPassbookScreen = () => {
                             record.outletCode,
                             record.campaignName,
                             totalBudget,
-                            paidAmount, // ✅ Amount paid in THIS installment
-                            balance, // ✅ Balance AFTER this payment
+                            paidAmount,
+                            balance,
                             formatDateToDDMMYYYY(inst.dateOfInstallment),
                             inst.utrNumber || "-",
                             inst.remarks || "-",
@@ -610,17 +594,17 @@ const ClientPassbookScreen = () => {
 
             // Set column widths
             ws["!cols"] = [
-                { wch: 8 }, // S.No
-                { wch: 15 }, // State
-                { wch: 25 }, // Outlet Name
-                { wch: 15 }, // Outlet Code
-                { wch: 25 }, // Campaign Name
-                { wch: 20 }, // Total Campaign Amount
-                { wch: 15 }, // Paid
-                { wch: 15 }, // Balance
-                { wch: 18 }, // Date
-                { wch: 15 }, // UTR Number
-                { wch: 18 }, // Remarks
+                { wch: 8 },
+                { wch: 15 },
+                { wch: 25 },
+                { wch: 15 },
+                { wch: 25 },
+                { wch: 20 },
+                { wch: 15 },
+                { wch: 15 },
+                { wch: 18 },
+                { wch: 15 },
+                { wch: 18 },
             ];
 
             // Create workbook
@@ -671,77 +655,48 @@ const ClientPassbookScreen = () => {
         }
     };
 
-    // ---- HANDLE FILTER CHANGES ----
-    const handleStatusChange = (callback) => {
-        const newValue =
-            typeof callback === "function"
-                ? callback(campaignStatus.value)
-                : callback;
-        const newStatus = statusItems.find((item) => item.value === newValue);
-        if (newStatus) {
-            setCampaignStatus(newStatus);
-            setSelectedStates([]);
-            setSelectedCampaigns([]);
-            setSelectedRetailers([]);
-        }
-    };
+    const handleStatusChange = useCallback((value) => {
+        setSelectedStates([]);
+        setSelectedCampaigns([]);
+        setSelectedRetailers([]);
+    }, []);
 
-    const handleStateChange = (callback) => {
-        const currentValues = selectedStatesRef.current.map((s) => s.value);
-        const newValues =
-            typeof callback === "function" ? callback(currentValues) : callback;
+    const handleStateChange = useCallback(
+        (value) => {
+            const prevValues = selectedStates;
+            const newValuesArray = Array.isArray(value) ? value : [];
 
-        let newState = [];
-        if (Array.isArray(newValues) && newValues.length > 0) {
-            newState = stateItems.filter((item) =>
-                newValues.includes(item.value)
-            );
-        }
+            // Reset dependent filters if state selection changed
+            if (
+                JSON.stringify([...prevValues].sort()) !==
+                JSON.stringify([...newValuesArray].sort())
+            ) {
+                setSelectedCampaigns([]);
+                setSelectedRetailers([]);
+            }
+        },
+        [selectedStates]
+    );
 
-        setSelectedStates(newState);
-        if (
-            JSON.stringify(currentValues.sort()) !==
-            JSON.stringify(newValues.sort())
-        ) {
-            setSelectedCampaigns([]);
-            setSelectedRetailers([]);
-        }
-    };
+    const handleCampaignChange = useCallback(
+        (value) => {
+            const prevValues = selectedCampaigns;
+            const newValuesArray = Array.isArray(value) ? value : [];
 
-    const handleCampaignChange = (callback) => {
-        const currentValues = selectedCampaignsRef.current.map((c) => c.value);
-        const newValues =
-            typeof callback === "function" ? callback(currentValues) : callback;
+            // Reset dependent filters if campaign selection changed
+            if (
+                JSON.stringify([...prevValues].sort()) !==
+                JSON.stringify([...newValuesArray].sort())
+            ) {
+                setSelectedRetailers([]);
+            }
+        },
+        [selectedCampaigns]
+    );
 
-        let newCampaigns = [];
-        if (Array.isArray(newValues) && newValues.length > 0) {
-            newCampaigns = campaignItems.filter((item) =>
-                newValues.includes(item.value)
-            );
-        }
-
-        setSelectedCampaigns(newCampaigns);
-        if (
-            JSON.stringify(currentValues.sort()) !==
-            JSON.stringify(newValues.sort())
-        ) {
-            setSelectedRetailers([]);
-        }
-    };
-
-    const handleRetailerChange = (callback) => {
-        const currentValues = selectedRetailersRef.current.map((r) => r.value);
-        const newValues =
-            typeof callback === "function" ? callback(currentValues) : callback;
-
-        let newRetailers = [];
-        if (Array.isArray(newValues) && newValues.length > 0) {
-            newRetailers = retailerItems.filter((item) =>
-                newValues.includes(item.value)
-            );
-        }
-
-        setSelectedRetailers(newRetailers);
+    const handleRetailerChange = (newValues) => {
+        const newValuesArray = Array.isArray(newValues) ? newValues : [];
+        setSelectedRetailers(newValuesArray);
     };
 
     // ---- CLEAR FILTERS ----
@@ -788,506 +743,578 @@ const ClientPassbookScreen = () => {
             <StatusBar style="dark" />
             <Header showBackButton={false} />
 
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        colors={["#E4002B"]}
-                        tintColor="#E4002B"
-                    />
-                }
-            >
-                <View style={styles.headingContainer}>
-                    <Text style={styles.headingText}>Client Passbook</Text>
-                    {allDisplayData.length > 0 && (
-                        <TouchableOpacity
-                            style={styles.exportButton}
-                            onPress={handleExportToExcel}
-                            disabled={exporting}
-                        >
-                            {exporting ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <>
-                                    <Ionicons
-                                        name="download-outline"
-                                        size={20}
-                                        color="#fff"
-                                    />
-                                    <Text style={styles.exportButtonText}>
-                                        Export
-                                    </Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                {/* Filters */}
-                <View style={styles.filtersContainer}>
-                    <Text style={styles.filterTitle}>Filter Options</Text>
-
-                    {/* Campaign Status Filter */}
-                    <View style={{ zIndex: 10000, marginBottom: 10 }}>
-                        <SearchableDropdown
-                            label="Campaign Status"
-                            placeholder="Select Status"
-                            open={statusOpen}
-                            value={campaignStatus.value}
-                            items={statusItems}
-                            setOpen={setStatusOpen}
-                            setValue={handleStatusChange}
-                            setItems={() => {}}
-                            searchable={false}
-                            multiple={false}
-                            zIndex={10000}
-                        />
-                    </View>
-
-                    {/* State Filter */}
-                    <View style={{ zIndex: 9000, marginBottom: 10 }}>
-                        <SearchableDropdown
-                            label="State (Optional)"
-                            placeholder="Select States"
-                            open={stateOpen}
-                            value={selectedStates.map((s) => s.value)}
-                            items={stateItems}
-                            setOpen={setStateOpen}
-                            setValue={handleStateChange}
-                            setItems={setStateItems}
-                            searchable={true}
-                            multiple={true}
-                            zIndex={9000}
-                        />
-                    </View>
-
-                    {/* Campaign Filter */}
-                    <View style={{ zIndex: 8000, marginBottom: 10 }}>
-                        <SearchableDropdown
-                            label="Campaign (Optional)"
-                            placeholder="All Campaigns"
-                            open={campaignOpen}
-                            value={selectedCampaigns.map((c) => c.value)}
-                            items={campaignItems}
-                            setOpen={setCampaignOpen}
-                            setValue={handleCampaignChange}
-                            setItems={setCampaignItems}
-                            searchable={true}
-                            multiple={true}
-                            zIndex={8000}
-                        />
-                    </View>
-
-                    {/* Retailer Filter */}
-                    <View style={{ zIndex: 7000, marginBottom: 10 }}>
-                        <SearchableDropdown
-                            label="Retailer (Optional)"
-                            placeholder="All Retailers"
-                            open={retailerOpen}
-                            value={selectedRetailers.map((r) => r.value)}
-                            items={retailerItems}
-                            setOpen={setRetailerOpen}
-                            setValue={handleRetailerChange}
-                            setItems={setRetailerItems}
-                            searchable={true}
-                            multiple={true}
-                            zIndex={7000}
-                        />
-                    </View>
-
-                    {/* Date Range Filters */}
-                    <View style={styles.dateRow}>
-                        <View style={styles.dateColumn}>
-                            <Text style={styles.dateLabel}>
-                                Start Date (Optional)
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.dateButton}
-                                onPress={() => setShowStartPicker(true)}
-                            >
-                                <Ionicons
-                                    name="calendar-outline"
-                                    size={20}
-                                    color="#666"
-                                />
-                                <Text style={styles.dateButtonText}>
-                                    {startDate
-                                        ? formatDateToDDMMYYYY(
-                                              startDate.toISOString()
-                                          )
-                                        : "Select Date"}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.dateColumn}>
-                            <Text style={styles.dateLabel}>
-                                End Date (Optional)
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.dateButton}
-                                onPress={() => setShowEndPicker(true)}
-                            >
-                                <Ionicons
-                                    name="calendar-outline"
-                                    size={20}
-                                    color="#666"
-                                />
-                                <Text style={styles.dateButtonText}>
-                                    {endDate
-                                        ? formatDateToDDMMYYYY(
-                                              endDate.toISOString()
-                                          )
-                                        : "Select Date"}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    {showStartPicker && (
-                        <DateTimePicker
-                            value={startDate || new Date()}
-                            mode="date"
-                            display="default"
-                            onChange={onStartDateChange}
-                        />
-                    )}
-
-                    {showEndPicker && (
-                        <DateTimePicker
-                            value={endDate || new Date()}
-                            mode="date"
-                            display="default"
-                            onChange={onEndDateChange}
-                        />
-                    )}
-
-                    {(selectedStates.length > 0 ||
-                        selectedCampaigns.length > 0 ||
-                        selectedRetailers.length > 0 ||
-                        startDate ||
-                        endDate) && (
-                        <Text
-                            style={styles.clearButton}
-                            onPress={handleClearFilters}
-                        >
-                            Clear All Filters
-                        </Text>
-                    )}
-                </View>
-
-                {/* Summary Cards */}
-                {allDisplayData.length > 0 && (
-                    <View style={styles.summaryRow}>
-                        <View style={styles.summaryCard}>
-                            <Ionicons
-                                name="wallet-outline"
-                                size={24}
-                                color="#007AFF"
+            <TouchableWithoutFeedback onPress={closeAllDropdowns}>
+                <View style={{ flex: 1 }}>
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.scrollContent}
+                        nestedScrollEnabled={true}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={onRefresh}
+                                colors={["#E4002B"]}
+                                tintColor="#E4002B"
                             />
-                            <Text style={styles.summaryValue}>
-                                ₹{summary.totalAmount.toLocaleString()}
+                        }
+                    >
+                        <View style={styles.headingContainer}>
+                            <Text style={styles.headingText}>
+                                Client Passbook
                             </Text>
-                            <Text style={styles.summaryLabel}>
-                                Total Amount (TCA)
-                            </Text>
-                        </View>
-                        <View style={styles.summaryCard}>
-                            <Ionicons
-                                name="checkmark-circle-outline"
-                                size={24}
-                                color="#28a745"
-                            />
-                            <Text style={styles.summaryValue}>
-                                ₹{summary.totalPaid.toLocaleString()}
-                            </Text>
-                            <Text style={styles.summaryLabel}>Total Paid</Text>
-                        </View>
-                        <View style={styles.summaryCard}>
-                            <Ionicons
-                                name="time-outline"
-                                size={24}
-                                color="#FFA500"
-                            />
-                            <Text style={styles.summaryValue}>
-                                ₹{summary.totalPending.toLocaleString()}
-                            </Text>
-                            <Text style={styles.summaryLabel}>Pending</Text>
-                        </View>
-                    </View>
-                )}
-
-                {/* Records List with Pagination Info */}
-                <View style={styles.listContainer}>
-                    {allDisplayData.length === 0 ? (
-                        <View style={styles.noTransactions}>
-                            <Ionicons
-                                name="receipt-outline"
-                                size={60}
-                                color="#ccc"
-                            />
-                            <Text style={styles.noTransactionsText}>
-                                No records found
-                            </Text>
-                            <Text style={styles.noTransactionsSubtext}>
-                                Try adjusting your filters
-                            </Text>
-                        </View>
-                    ) : (
-                        <>
-                            <View style={styles.recordsHeader}>
-                                <Text style={styles.recordsCount}>
-                                    Passbook Records ({totalRecords})
-                                </Text>
-                                {totalRecords > limit && (
-                                    <Text style={styles.paginationInfo}>
-                                        Showing {(currentPage - 1) * limit + 1}{" "}
-                                        to{" "}
-                                        {Math.min(
-                                            currentPage * limit,
-                                            totalRecords
-                                        )}{" "}
-                                        of {totalRecords}
-                                    </Text>
-                                )}
-                            </View>
-
-                            {paginatedData.map((record, index) => (
-                                <View
-                                    key={`${record.outletCode}-${record.campaignId}-${index}`}
-                                    style={styles.transactionCard}
+                            {allDisplayData.length > 0 && (
+                                <TouchableOpacity
+                                    style={styles.exportButton}
+                                    onPress={handleExportToExcel}
+                                    disabled={exporting}
                                 >
-                                    <View style={styles.transactionHeader}>
-                                        <Text style={styles.outletText}>
-                                            {record.shopName}
-                                        </Text>
-                                        <Text style={styles.stateText}>
-                                            {record.state}
-                                        </Text>
-                                    </View>
+                                    {exporting ? (
+                                        <ActivityIndicator
+                                            size="small"
+                                            color="#fff"
+                                        />
+                                    ) : (
+                                        <>
+                                            <Ionicons
+                                                name="download-outline"
+                                                size={20}
+                                                color="#fff"
+                                            />
+                                            <Text
+                                                style={styles.exportButtonText}
+                                            >
+                                                Export
+                                            </Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                        </View>
 
-                                    <Text style={styles.outletCodeText}>
-                                        Code: {record.outletCode}
+                        {/* ✅ FILTERS WITH ENHANCED DROPDOWNS */}
+                        <View style={styles.filtersContainer}>
+                            <Text style={styles.filterTitle}>
+                                Filter Options
+                            </Text>
+
+                            {/* Campaign Status Filter */}
+                            <SearchableDropdown
+                                label="Campaign Status"
+                                placeholder="Select Status"
+                                open={statusOpen}
+                                value={campaignStatus}
+                                items={statusItems}
+                                setOpen={setStatusOpen}
+                                setValue={setCampaignStatus}
+                                setItems={() => {}}
+                                searchable={false}
+                                multiple={false}
+                                zIndex={10000}
+                                onOpen={handleStatusOpen}
+                                onChangeValue={handleStatusChange}
+                            />
+
+                            {/* State Filter */}
+                            <SearchableDropdown
+                                label="State (Optional)"
+                                placeholder="Select States"
+                                open={stateOpen}
+                                value={selectedStates}
+                                items={stateItems}
+                                setOpen={setStateOpen}
+                                setValue={setSelectedStates}
+                                setItems={setStateItems}
+                                searchable={true}
+                                multiple={true}
+                                zIndex={9000}
+                                onOpen={handleStateOpen}
+                                onChangeValue={handleStateChange}
+                            />
+
+                            {/* Campaign Filter */}
+                            <SearchableDropdown
+                                label="Campaign (Optional)"
+                                placeholder="All Campaigns"
+                                open={campaignOpen}
+                                value={selectedCampaigns}
+                                items={campaignItems}
+                                setOpen={setCampaignOpen}
+                                setValue={setSelectedCampaigns}
+                                setItems={setCampaignItems}
+                                searchable={true}
+                                multiple={true}
+                                zIndex={8000}
+                                onOpen={handleCampaignOpen}
+                                onChangeValue={handleCampaignChange}
+                            />
+
+                            {/* Retailer Filter */}
+                            <SearchableDropdown
+                                label="Retailer (Optional)"
+                                placeholder="All Retailers"
+                                open={retailerOpen}
+                                value={selectedRetailers}
+                                items={retailerItems}
+                                setOpen={setRetailerOpen}
+                                setValue={setSelectedRetailers}
+                                setItems={setRetailerItems}
+                                searchable={true}
+                                multiple={true}
+                                zIndex={7000}
+                                onOpen={handleRetailerOpen}
+                            />
+
+                            {/* Date Range Filters */}
+                            <View style={styles.dateRow}>
+                                <View style={styles.dateColumn}>
+                                    <Text style={styles.dateLabel}>
+                                        Start Date (Optional)
                                     </Text>
-
-                                    <Text style={styles.campaignText}>
-                                        Campaign: {record.campaignName}
-                                    </Text>
-
-                                    <View style={styles.amountRow}>
-                                        <View style={styles.amountColumn}>
-                                            <Text style={styles.amountLabel}>
-                                                Total Amount (TCA)
-                                            </Text>
-                                            <Text
-                                                style={[
-                                                    styles.amountValue,
-                                                    { color: "#007AFF" },
-                                                ]}
-                                            >
-                                                ₹{record.tca?.toLocaleString()}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.amountColumn}>
-                                            <Text style={styles.amountLabel}>
-                                                Paid
-                                            </Text>
-                                            <Text
-                                                style={[
-                                                    styles.amountValue,
-                                                    { color: "#28a745" },
-                                                ]}
-                                            >
-                                                ₹
-                                                {record.cPaid?.toLocaleString()}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.amountColumn}>
-                                            <Text style={styles.amountLabel}>
-                                                Pending
-                                            </Text>
-                                            <Text
-                                                style={[
-                                                    styles.amountValue,
-                                                    { color: "#FFA500" },
-                                                ]}
-                                            >
-                                                ₹
-                                                {record.cPending?.toLocaleString()}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.lastPaymentRow}>
+                                    <TouchableOpacity
+                                        style={styles.dateButton}
+                                        onPress={() => setShowStartPicker(true)}
+                                    >
                                         <Ionicons
-                                            name="time-outline"
-                                            size={14}
+                                            name="calendar-outline"
+                                            size={20}
                                             color="#666"
                                         />
-                                        <Text style={styles.lastPaymentText}>
-                                            Last Payment:{" "}
-                                            {formatDateToDDMMYYYY(
-                                                record.lastPaymentDate
-                                            )}
+                                        <Text style={styles.dateButtonText}>
+                                            {startDate
+                                                ? formatDateToDDMMYYYY(
+                                                      startDate.toISOString()
+                                                  )
+                                                : "Select Date"}
                                         </Text>
-                                    </View>
+                                    </TouchableOpacity>
                                 </View>
-                            ))}
 
-                            {/* Pagination Controls */}
-                            {totalPages > 1 && (
-                                <View style={styles.paginationContainer}>
-                                    <Text style={styles.pageInfo}>
-                                        Page {currentPage} of {totalPages}
+                                <View style={styles.dateColumn}>
+                                    <Text style={styles.dateLabel}>
+                                        End Date (Optional)
                                     </Text>
-
-                                    <View style={styles.paginationButtons}>
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.pageButton,
-                                                currentPage === 1 &&
-                                                    styles.pageButtonDisabled,
-                                            ]}
-                                            onPress={() => handlePageChange(1)}
-                                            disabled={currentPage === 1}
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.pageButtonText,
-                                                    currentPage === 1 &&
-                                                        styles.pageButtonTextDisabled,
-                                                ]}
-                                            >
-                                                First
-                                            </Text>
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.pageButton,
-                                                currentPage === 1 &&
-                                                    styles.pageButtonDisabled,
-                                            ]}
-                                            onPress={() =>
-                                                handlePageChange(
-                                                    currentPage - 1
-                                                )
-                                            }
-                                            disabled={currentPage === 1}
-                                        >
-                                            <Ionicons
-                                                name="chevron-back"
-                                                size={18}
-                                                color={
-                                                    currentPage === 1
-                                                        ? "#ccc"
-                                                        : "#333"
-                                                }
-                                            />
-                                        </TouchableOpacity>
-
-                                        <View style={styles.pageNumbersRow}>
-                                            {getPageNumbers().map(
-                                                (pageNum, idx) =>
-                                                    pageNum === "..." ? (
-                                                        <Text
-                                                            key={`ellipsis-${idx}`}
-                                                            style={
-                                                                styles.ellipsis
-                                                            }
-                                                        >
-                                                            ...
-                                                        </Text>
-                                                    ) : (
-                                                        <TouchableOpacity
-                                                            key={pageNum}
-                                                            style={[
-                                                                styles.pageNumberButton,
-                                                                currentPage ===
-                                                                    pageNum &&
-                                                                    styles.pageNumberButtonActive,
-                                                            ]}
-                                                            onPress={() =>
-                                                                handlePageChange(
-                                                                    pageNum
-                                                                )
-                                                            }
-                                                        >
-                                                            <Text
-                                                                style={[
-                                                                    styles.pageNumberText,
-                                                                    currentPage ===
-                                                                        pageNum &&
-                                                                        styles.pageNumberTextActive,
-                                                                ]}
-                                                            >
-                                                                {pageNum}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    )
-                                            )}
-                                        </View>
-
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.pageButton,
-                                                currentPage === totalPages &&
-                                                    styles.pageButtonDisabled,
-                                            ]}
-                                            onPress={() =>
-                                                handlePageChange(
-                                                    currentPage + 1
-                                                )
-                                            }
-                                            disabled={
-                                                currentPage === totalPages
-                                            }
-                                        >
-                                            <Ionicons
-                                                name="chevron-forward"
-                                                size={18}
-                                                color={
-                                                    currentPage === totalPages
-                                                        ? "#ccc"
-                                                        : "#333"
-                                                }
-                                            />
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.pageButton,
-                                                currentPage === totalPages &&
-                                                    styles.pageButtonDisabled,
-                                            ]}
-                                            onPress={() =>
-                                                handlePageChange(totalPages)
-                                            }
-                                            disabled={
-                                                currentPage === totalPages
-                                            }
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.pageButtonText,
-                                                    currentPage ===
-                                                        totalPages &&
-                                                        styles.pageButtonTextDisabled,
-                                                ]}
-                                            >
-                                                Last
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.dateButton}
+                                        onPress={() => setShowEndPicker(true)}
+                                    >
+                                        <Ionicons
+                                            name="calendar-outline"
+                                            size={20}
+                                            color="#666"
+                                        />
+                                        <Text style={styles.dateButtonText}>
+                                            {endDate
+                                                ? formatDateToDDMMYYYY(
+                                                      endDate.toISOString()
+                                                  )
+                                                : "Select Date"}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
+                            </View>
+
+                            {showStartPicker && (
+                                <DateTimePicker
+                                    value={startDate || new Date()}
+                                    mode="date"
+                                    display="default"
+                                    onChange={onStartDateChange}
+                                />
                             )}
-                        </>
-                    )}
+
+                            {showEndPicker && (
+                                <DateTimePicker
+                                    value={endDate || new Date()}
+                                    mode="date"
+                                    display="default"
+                                    onChange={onEndDateChange}
+                                />
+                            )}
+
+                            {(selectedStates.length > 0 ||
+                                selectedCampaigns.length > 0 ||
+                                selectedRetailers.length > 0 ||
+                                startDate ||
+                                endDate) && (
+                                <Text
+                                    style={styles.clearButton}
+                                    onPress={handleClearFilters}
+                                >
+                                    Clear All Filters
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* Summary Cards */}
+                        {allDisplayData.length > 0 && (
+                            <View style={styles.summaryRow}>
+                                <View style={styles.summaryCard}>
+                                    <Ionicons
+                                        name="wallet-outline"
+                                        size={24}
+                                        color="#007AFF"
+                                    />
+                                    <Text style={styles.summaryValue}>
+                                        ₹{summary.totalAmount.toLocaleString()}
+                                    </Text>
+                                    <Text style={styles.summaryLabel}>
+                                        Total Amount (TCA)
+                                    </Text>
+                                </View>
+                                <View style={styles.summaryCard}>
+                                    <Ionicons
+                                        name="checkmark-circle-outline"
+                                        size={24}
+                                        color="#28a745"
+                                    />
+                                    <Text style={styles.summaryValue}>
+                                        ₹{summary.totalPaid.toLocaleString()}
+                                    </Text>
+                                    <Text style={styles.summaryLabel}>
+                                        Total Paid
+                                    </Text>
+                                </View>
+                                <View style={styles.summaryCard}>
+                                    <Ionicons
+                                        name="time-outline"
+                                        size={24}
+                                        color="#FFA500"
+                                    />
+                                    <Text style={styles.summaryValue}>
+                                        ₹{summary.totalPending.toLocaleString()}
+                                    </Text>
+                                    <Text style={styles.summaryLabel}>
+                                        Pending
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Records List with Pagination Info */}
+                        <View style={styles.listContainer}>
+                            {allDisplayData.length === 0 ? (
+                                <View style={styles.noTransactions}>
+                                    <Ionicons
+                                        name="receipt-outline"
+                                        size={60}
+                                        color="#ccc"
+                                    />
+                                    <Text style={styles.noTransactionsText}>
+                                        No records found
+                                    </Text>
+                                    <Text style={styles.noTransactionsSubtext}>
+                                        Try adjusting your filters
+                                    </Text>
+                                </View>
+                            ) : (
+                                <>
+                                    <View style={styles.recordsHeader}>
+                                        <Text style={styles.recordsCount}>
+                                            Passbook Records ({totalRecords})
+                                        </Text>
+                                        {totalRecords > limit && (
+                                            <Text style={styles.paginationInfo}>
+                                                Showing{" "}
+                                                {(currentPage - 1) * limit + 1}{" "}
+                                                to{" "}
+                                                {Math.min(
+                                                    currentPage * limit,
+                                                    totalRecords
+                                                )}{" "}
+                                                of {totalRecords}
+                                            </Text>
+                                        )}
+                                    </View>
+
+                                    {paginatedData.map((record, index) => (
+                                        <View
+                                            key={`${record.outletCode}-${record.campaignId}-${index}`}
+                                            style={styles.transactionCard}
+                                        >
+                                            <View
+                                                style={styles.transactionHeader}
+                                            >
+                                                <Text style={styles.outletText}>
+                                                    {record.shopName}
+                                                </Text>
+                                                <Text style={styles.stateText}>
+                                                    {record.state}
+                                                </Text>
+                                            </View>
+
+                                            <Text style={styles.outletCodeText}>
+                                                Code: {record.outletCode}
+                                            </Text>
+
+                                            <Text style={styles.campaignText}>
+                                                Campaign: {record.campaignName}
+                                            </Text>
+
+                                            <View style={styles.amountRow}>
+                                                <View
+                                                    style={styles.amountColumn}
+                                                >
+                                                    <Text
+                                                        style={
+                                                            styles.amountLabel
+                                                        }
+                                                    >
+                                                        Total Amount (TCA)
+                                                    </Text>
+                                                    <Text
+                                                        style={[
+                                                            styles.amountValue,
+                                                            {
+                                                                color: "#007AFF",
+                                                            },
+                                                        ]}
+                                                    >
+                                                        ₹
+                                                        {record.tca?.toLocaleString()}
+                                                    </Text>
+                                                </View>
+                                                <View
+                                                    style={styles.amountColumn}
+                                                >
+                                                    <Text
+                                                        style={
+                                                            styles.amountLabel
+                                                        }
+                                                    >
+                                                        Paid
+                                                    </Text>
+                                                    <Text
+                                                        style={[
+                                                            styles.amountValue,
+                                                            {
+                                                                color: "#28a745",
+                                                            },
+                                                        ]}
+                                                    >
+                                                        ₹
+                                                        {record.cPaid?.toLocaleString()}
+                                                    </Text>
+                                                </View>
+                                                <View
+                                                    style={styles.amountColumn}
+                                                >
+                                                    <Text
+                                                        style={
+                                                            styles.amountLabel
+                                                        }
+                                                    >
+                                                        Pending
+                                                    </Text>
+                                                    <Text
+                                                        style={[
+                                                            styles.amountValue,
+                                                            {
+                                                                color: "#FFA500",
+                                                            },
+                                                        ]}
+                                                    >
+                                                        ₹
+                                                        {record.cPending?.toLocaleString()}
+                                                    </Text>
+                                                </View>
+                                            </View>
+
+                                            <View style={styles.lastPaymentRow}>
+                                                <Ionicons
+                                                    name="time-outline"
+                                                    size={14}
+                                                    color="#666"
+                                                />
+                                                <Text
+                                                    style={
+                                                        styles.lastPaymentText
+                                                    }
+                                                >
+                                                    Last Payment:{" "}
+                                                    {formatDateToDDMMYYYY(
+                                                        record.lastPaymentDate
+                                                    )}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    ))}
+
+                                    {/* Pagination Controls */}
+                                    {totalPages > 1 && (
+                                        <View
+                                            style={styles.paginationContainer}
+                                        >
+                                            <Text style={styles.pageInfo}>
+                                                Page {currentPage} of{" "}
+                                                {totalPages}
+                                            </Text>
+
+                                            <View
+                                                style={styles.paginationButtons}
+                                            >
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.pageButton,
+                                                        currentPage === 1 &&
+                                                            styles.pageButtonDisabled,
+                                                    ]}
+                                                    onPress={() =>
+                                                        handlePageChange(1)
+                                                    }
+                                                    disabled={currentPage === 1}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.pageButtonText,
+                                                            currentPage === 1 &&
+                                                                styles.pageButtonTextDisabled,
+                                                        ]}
+                                                    >
+                                                        First
+                                                    </Text>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.pageButton,
+                                                        currentPage === 1 &&
+                                                            styles.pageButtonDisabled,
+                                                    ]}
+                                                    onPress={() =>
+                                                        handlePageChange(
+                                                            currentPage - 1
+                                                        )
+                                                    }
+                                                    disabled={currentPage === 1}
+                                                >
+                                                    <Ionicons
+                                                        name="chevron-back"
+                                                        size={18}
+                                                        color={
+                                                            currentPage === 1
+                                                                ? "#ccc"
+                                                                : "#333"
+                                                        }
+                                                    />
+                                                </TouchableOpacity>
+
+                                                <View
+                                                    style={
+                                                        styles.pageNumbersRow
+                                                    }
+                                                >
+                                                    {getPageNumbers().map(
+                                                        (pageNum, idx) =>
+                                                            pageNum ===
+                                                            "..." ? (
+                                                                <Text
+                                                                    key={`ellipsis-${idx}`}
+                                                                    style={
+                                                                        styles.ellipsis
+                                                                    }
+                                                                >
+                                                                    ...
+                                                                </Text>
+                                                            ) : (
+                                                                <TouchableOpacity
+                                                                    key={
+                                                                        pageNum
+                                                                    }
+                                                                    style={[
+                                                                        styles.pageNumberButton,
+                                                                        currentPage ===
+                                                                            pageNum &&
+                                                                            styles.pageNumberButtonActive,
+                                                                    ]}
+                                                                    onPress={() =>
+                                                                        handlePageChange(
+                                                                            pageNum
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Text
+                                                                        style={[
+                                                                            styles.pageNumberText,
+                                                                            currentPage ===
+                                                                                pageNum &&
+                                                                                styles.pageNumberTextActive,
+                                                                        ]}
+                                                                    >
+                                                                        {
+                                                                            pageNum
+                                                                        }
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            )
+                                                    )}
+                                                </View>
+
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.pageButton,
+                                                        currentPage ===
+                                                            totalPages &&
+                                                            styles.pageButtonDisabled,
+                                                    ]}
+                                                    onPress={() =>
+                                                        handlePageChange(
+                                                            currentPage + 1
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        currentPage ===
+                                                        totalPages
+                                                    }
+                                                >
+                                                    <Ionicons
+                                                        name="chevron-forward"
+                                                        size={18}
+                                                        color={
+                                                            currentPage ===
+                                                            totalPages
+                                                                ? "#ccc"
+                                                                : "#333"
+                                                        }
+                                                    />
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.pageButton,
+                                                        currentPage ===
+                                                            totalPages &&
+                                                            styles.pageButtonDisabled,
+                                                    ]}
+                                                    onPress={() =>
+                                                        handlePageChange(
+                                                            totalPages
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        currentPage ===
+                                                        totalPages
+                                                    }
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.pageButtonText,
+                                                            currentPage ===
+                                                                totalPages &&
+                                                                styles.pageButtonTextDisabled,
+                                                        ]}
+                                                    >
+                                                        Last
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    )}
+                                </>
+                            )}
+                        </View>
+                    </ScrollView>
                 </View>
-            </ScrollView>
+            </TouchableWithoutFeedback>
         </SafeAreaView>
     );
 };
