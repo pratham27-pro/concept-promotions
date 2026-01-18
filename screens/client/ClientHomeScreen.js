@@ -1,40 +1,52 @@
 // screens/client/ClientHomeScreen.js
-import React, { useState, useCallback, useMemo } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
+import { useCallback, useMemo, useState } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    Platform,
-    RefreshControl,
     ActivityIndicator,
     Alert,
+    Dimensions,
+    Image,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
+import { BarChart, PieChart } from "react-native-chart-kit";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as RootNavigation from "../../navigation/RootNavigation";
 
-import { useAuth } from "../../context/AuthContext";
+import * as ImagePicker from "expo-image-picker";
 import Header from "../../components/common/Header";
+import { useAuth } from "../../context/AuthContext";
 import { API_BASE_URL } from "../../url/base";
 
+const screenWidth = Dimensions.get("window").width;
+
 const ClientHomeScreen = ({ navigation }) => {
-    const { userProfile } = useAuth();
+    const { userProfile, logout } = useAuth();
 
     const [clientName, setClientName] = useState("");
 
     // API Data States
     const [campaigns, setCampaigns] = useState([]);
-    const [payments, setPayments] = useState([]);
+    const [budgets, setBudgets] = useState([]);
     const [reportedOutlets, setReportedOutlets] = useState([]);
 
     // UI States
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    // Filter States
+    const [campaignFilter, setCampaignFilter] = useState("active"); // 'active', 'inactive', 'all'
+    const [showFilters, setShowFilters] = useState(false);
+    const [uploadingImage, setUploadingImage] = useState(false);
+
+    const [clientImage, setClientImage] = useState(null);
 
     useFocusEffect(
         useCallback(() => {
@@ -47,20 +59,130 @@ const ClientHomeScreen = ({ navigation }) => {
         try {
             if (userProfile?.name) {
                 setClientName(userProfile.name);
+                if (userProfile?.profileImage?.url) {
+                    setClientImage(userProfile.profileImage.url);
+                }
                 return;
             }
 
             const userDataString = await AsyncStorage.getItem("userData");
             if (userDataString) {
                 const userData = JSON.parse(userDataString);
-                const name =
-                    userData?.admin?.name || userData?.name || "Client";
-                setClientName(name);
+                setClientName(
+                    userData?.admin?.name || userData?.name || "Client"
+                );
+
+                const imageUrl =
+                    userData?.admin?.profileImage?.url ||
+                    userData?.profileImage?.url ||
+                    null;
+                setClientImage(imageUrl);
             }
         } catch (error) {
             console.error("Error loading client name:", error);
             setClientName("Client");
         }
+    };
+
+    const pickImage = async () => {
+        const { status } =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert(
+                "Permission Required",
+                "We need camera roll permissions."
+            );
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+
+        if (!result.canceled) {
+            await uploadImage(result.assets[0].uri);
+        }
+    };
+
+    const uploadImage = async (imageUri) => {
+        setUploadingImage(true);
+        try {
+            const token = await AsyncStorage.getItem("userToken");
+            const formData = new FormData();
+            formData.append("profileImage", {
+                uri: imageUri,
+                type: "image/jpeg",
+                name: "profile.jpg",
+            });
+
+            const response = await fetch(
+                `${API_BASE_URL}/client/profile/image`,
+                {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData,
+                }
+            );
+
+            if (response.ok) {
+                Alert.alert("Success", "Profile image updated");
+                await fetchClientData(); // ← Refetch to sync
+            }
+        } catch (error) {
+            Alert.alert("Error", "Failed to upload image");
+        } finally {
+            setUploadingImage(false);
+        }
+    };
+
+    const deleteImage = async () => {
+        setUploadingImage(true);
+        try {
+            const token = await AsyncStorage.getItem("userToken");
+            const response = await fetch(
+                `${API_BASE_URL}/client/profile/image`,
+                {
+                    method: "DELETE",
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+
+            if (response.ok) {
+                Alert.alert("Success", "Profile image deleted");
+                await fetchClientData(); // ← Refetch to sync
+            }
+        } catch (error) {
+            Alert.alert("Error", "Failed to delete image");
+        } finally {
+            setUploadingImage(false);
+        }
+    };
+
+    const showImageOptions = () => {
+        const options = clientImage
+            ? ["Take Photo", "Choose from Library", "Delete Photo", "Cancel"]
+            : ["Take Photo", "Choose from Library", "Cancel"];
+
+        Alert.alert(
+            "Profile Photo",
+            "Choose an option",
+            options.map((opt, idx) => ({
+                text: opt,
+                onPress: () => {
+                    if (idx === 0) {
+                        /* Take Photo - implement camera */
+                    } else if (idx === 1) {
+                        pickImage();
+                    } else if (idx === 2 && clientImage) {
+                        deleteImage();
+                    }
+                },
+                style: idx === 2 && clientImage ? "destructive" : "default",
+            }))
+        );
     };
 
     const fetchClientData = async () => {
@@ -81,17 +203,18 @@ const ClientHomeScreen = ({ navigation }) => {
                 "Content-Type": "application/json",
             };
 
-            const [campaignsRes, paymentsRes, outletsRes] =
+            const [campaignsRes, budgetsRes, outletsRes, profileRes] =
                 await Promise.allSettled([
                     fetch(`${API_BASE_URL}/client/client/campaigns`, {
                         headers,
                     }),
-                    fetch(`${API_BASE_URL}/client/client/payments`, {
+                    fetch(`${API_BASE_URL}/budgets`, {
                         headers,
                     }),
                     fetch(`${API_BASE_URL}/client/client/reported-outlets`, {
                         headers,
                     }),
+                    fetch(`${API_BASE_URL}/client/client/profile`, { headers }),
                 ]);
 
             if (campaignsRes.status === "fulfilled" && campaignsRes.value.ok) {
@@ -101,11 +224,11 @@ const ClientHomeScreen = ({ navigation }) => {
                 setCampaigns([]);
             }
 
-            if (paymentsRes.status === "fulfilled" && paymentsRes.value.ok) {
-                const payData = await paymentsRes.value.json();
-                setPayments(payData.payments || []);
+            if (budgetsRes.status === "fulfilled" && budgetsRes.value.ok) {
+                const budgetData = await budgetsRes.value.json();
+                setBudgets(budgetData.budgets || []);
             } else {
-                setPayments([]);
+                setBudgets([]);
             }
 
             if (outletsRes.status === "fulfilled" && outletsRes.value.ok) {
@@ -113,6 +236,37 @@ const ClientHomeScreen = ({ navigation }) => {
                 setReportedOutlets(outletData.outlets || []);
             } else {
                 setReportedOutlets([]);
+            }
+
+            if (profileRes.status === "fulfilled" && profileRes.value.ok) {
+                const profileData = await profileRes.value.json();
+
+                if (profileData.client?.name) {
+                    setClientName(profileData.client.name);
+                }
+
+                if (profileData.client?.profileImage?.url) {
+                    setClientImage(profileData.client.profileImage.url);
+                } else {
+                    console.log("❌ No image URL found in response");
+                    console.log("❌ Checking alternative paths...");
+
+                    // Try alternative structures
+                    if (profileData.profileImage?.url) {
+                        console.log("✅ Found at profileData.profileImage.url");
+                        setClientImage(profileData.profileImage.url);
+                    } else if (profileData.client?.profilePicture?.url) {
+                        console.log(
+                            "✅ Found at profileData.client.profilePicture.url"
+                        );
+                        setClientImage(profileData.client.profilePicture.url);
+                    }
+                }
+
+                await AsyncStorage.setItem(
+                    "userData",
+                    JSON.stringify({ admin: profileData.client })
+                );
             }
         } catch (error) {
             console.error("❌ Client Dashboard API Error:", error);
@@ -132,122 +286,233 @@ const ClientHomeScreen = ({ navigation }) => {
         loadClientName();
     };
 
-    // Calculate summary statistics
-    const activeCampaigns = useMemo(() => {
-        return campaigns.filter((c) => {
-            const endDate = new Date(c.endDate);
-            return endDate >= new Date();
-        }).length;
-    }, [campaigns]);
+    // Filter campaigns based on status
+    const filteredCampaigns = useMemo(() => {
+        if (campaignFilter === "all") return campaigns;
+        const isActive = campaignFilter === "active";
+        return campaigns.filter((c) => c.isActive === isActive);
+    }, [campaigns, campaignFilter]);
 
-    const totalSpend = useMemo(() => {
-        return payments.reduce(
-            (sum, payment) => sum + (payment.totalAmount || 0),
-            0
-        );
-    }, [payments]);
+    // Build outlets data from campaigns
+    const outletsData = useMemo(() => {
+        const outletsArray = [];
 
-    const uniqueOutletsCount = useMemo(() => {
-        const uniqueRetailers = new Set();
-        campaigns.forEach((campaign) => {
-            campaign.retailers?.forEach((retailer) => {
-                if (retailer.retailerId) {
-                    uniqueRetailers.add(retailer.retailerId);
+        filteredCampaigns.forEach((campaign) => {
+            (campaign.assignedRetailers || []).forEach((retailerAssignment) => {
+                const retailer = retailerAssignment.retailerId;
+
+                if (!retailer || !retailer._id) return;
+
+                const retailerId = retailer._id;
+                const acceptanceStatus = retailerAssignment.status || "pending";
+
+                // Find payment info
+                const budget = budgets.find((b) => {
+                    if (!b.retailerId) return false;
+                    const budgetRetailerId = b.retailerId._id || b.retailerId;
+                    return budgetRetailerId === retailerId;
+                });
+
+                let campaignPaymentStatus = "Pending";
+                let tca = 0;
+                let cPaid = 0;
+
+                if (budget) {
+                    const campaignBudget = budget.campaigns.find((c) => {
+                        if (!c.campaignId) return false;
+                        const budgetCampaignId =
+                            c.campaignId._id || c.campaignId;
+                        return budgetCampaignId === campaign._id;
+                    });
+
+                    if (campaignBudget) {
+                        tca = campaignBudget.tca || 0;
+                        cPaid = campaignBudget.cPaid || 0;
+
+                        if (cPaid === 0) {
+                            campaignPaymentStatus = "Pending";
+                        } else if (cPaid < tca) {
+                            campaignPaymentStatus = "Partially Paid";
+                        } else if (cPaid >= tca) {
+                            campaignPaymentStatus = "Completed";
+                        }
+                    }
                 }
+
+                outletsArray.push({
+                    retailerId,
+                    campaignId: campaign._id,
+                    acceptanceStatus,
+                    paymentStatus: campaignPaymentStatus,
+                    tca,
+                    cPaid,
+                });
             });
         });
-        return uniqueRetailers.size;
-    }, [campaigns]);
 
-    const pendingPayments = useMemo(() => {
-        return payments.filter((p) => p.paymentStatus === "Pending").length;
-    }, [payments]);
+        return outletsArray;
+    }, [filteredCampaigns, budgets]);
+
+    // Calculate statistics
+    const statistics = useMemo(() => {
+        const uniqueOutlets = new Set(outletsData.map((o) => o.retailerId));
+        const uniqueOutletsCount = uniqueOutlets.size;
+        const campaignWiseEnrollments = outletsData.length;
+        const campaignWiseActivated = outletsData.filter(
+            (o) => o.acceptanceStatus === "accepted"
+        ).length;
+        const outletsFullyPaid = outletsData.filter(
+            (o) => o.paymentStatus === "Completed"
+        ).length;
+
+        return {
+            uniqueOutletsCount,
+            campaignWiseEnrollments,
+            campaignWiseActivated,
+            outletsFullyPaid,
+        };
+    }, [outletsData]);
 
     const summaryCards = useMemo(
         () => [
             {
                 id: 1,
-                title: "Active Campaigns",
-                value: activeCampaigns,
-                icon: "megaphone-outline",
+                title: "Total Outlets",
+                subtitle: "Unique outlets enrolled",
+                value: statistics.uniqueOutletsCount,
+                icon: "storefront-outline",
                 color: "#007AFF",
                 bgColor: "#E3F2FD",
             },
             {
                 id: 2,
-                title: "Total Spend",
-                value: `₹${(totalSpend / 100000).toFixed(1)}L`,
-                icon: "cash-outline",
+                title: "Campaign Enrollments",
+                subtitle: "Outlet-campaign combinations",
+                value: statistics.campaignWiseEnrollments,
+                icon: "list-outline",
                 color: "#28a745",
                 bgColor: "#E8F5E9",
             },
             {
                 id: 3,
-                title: "Outlets Enrolled",
-                value: uniqueOutletsCount,
-                icon: "storefront-outline",
+                title: "Active Enrollments",
+                subtitle: "Accepted by outlets",
+                value: statistics.campaignWiseActivated,
+                icon: "checkmark-circle-outline",
                 color: "#FFA500",
                 bgColor: "#FFF3E0",
             },
             {
                 id: 4,
-                title: "Pending Payments",
-                value: pendingPayments,
-                icon: "time-outline",
+                title: "Completed Payments",
+                subtitle: "Fully paid enrollments",
+                value: statistics.outletsFullyPaid,
+                icon: "cash-outline",
                 color: "#dc3545",
                 bgColor: "#FFEBEE",
             },
         ],
-        [activeCampaigns, totalSpend, uniqueOutletsCount, pendingPayments]
+        [statistics]
     );
 
-    // Recent activity
-    const recentActivity = useMemo(() => {
-        const reportsThisWeek = reportedOutlets.filter((outlet) => {
-            const reportDate = new Date(outlet.createdAt || outlet.date);
-            const weekAgo = new Date();
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            return reportDate >= weekAgo;
-        }).length;
-
-        const thisMonthPayments = payments.filter((payment) => {
-            const paymentDate = new Date(payment.date || payment.createdAt);
-            const currentMonth = new Date().getMonth();
-            return paymentDate.getMonth() === currentMonth;
-        });
-
-        const thisMonthSpend = thisMonthPayments.reduce(
-            (sum, p) => sum + (p.totalAmount || 0),
-            0
-        );
-
-        const completedPayments = payments.filter(
-            (p) => p.paymentStatus === "Completed"
+    // Chart Data
+    const paymentChartData = useMemo(() => {
+        const completed = outletsData.filter(
+            (o) => o.paymentStatus === "Completed"
+        ).length;
+        const partiallyPaid = outletsData.filter(
+            (o) => o.paymentStatus === "Partially Paid"
+        ).length;
+        const pending = outletsData.filter(
+            (o) => o.paymentStatus === "Pending"
         ).length;
 
         return [
             {
-                icon: "checkmark-done-outline",
-                iconColor: "#28a745",
-                title: `${reportsThisWeek} reports submitted this week`,
-                subtitle:
-                    activeCampaigns > 0
-                        ? `Across ${activeCampaigns} active campaigns`
-                        : "No active campaigns",
+                name: "Completed",
+                count: completed,
+                color: "#22C55E",
+                legendFontColor: "#333",
+                legendFontSize: 12,
             },
             {
-                icon: "wallet-outline",
-                iconColor: "#007AFF",
-                title:
-                    thisMonthSpend > 0
-                        ? `₹${(thisMonthSpend / 100000).toFixed(
-                              2
-                          )}L spent this month`
-                        : "No spending this month",
-                subtitle: `${completedPayments} payments completed`,
+                name: "Partial",
+                count: partiallyPaid,
+                color: "#FBBF24",
+                legendFontColor: "#333",
+                legendFontSize: 12,
+            },
+            {
+                name: "Pending",
+                count: pending,
+                color: "#EF4444",
+                legendFontColor: "#333",
+                legendFontSize: 12,
             },
         ];
-    }, [reportedOutlets, payments, activeCampaigns]);
+    }, [outletsData]);
+
+    const acceptanceChartData = useMemo(() => {
+        const accepted = outletsData.filter(
+            (o) => o.acceptanceStatus === "accepted"
+        ).length;
+        const pending = outletsData.filter(
+            (o) => o.acceptanceStatus === "pending"
+        ).length;
+        const rejected = outletsData.filter(
+            (o) => o.acceptanceStatus === "rejected"
+        ).length;
+
+        return [
+            {
+                name: "Accepted",
+                count: accepted,
+                color: "#22C55E",
+                legendFontColor: "#333",
+                legendFontSize: 12,
+            },
+            {
+                name: "Pending",
+                count: pending,
+                color: "#9CA3AF",
+                legendFontColor: "#333",
+                legendFontSize: 12,
+            },
+            {
+                name: "Rejected",
+                count: rejected,
+                color: "#EF4444",
+                legendFontColor: "#333",
+                legendFontSize: 12,
+            },
+        ];
+    }, [outletsData]);
+
+    const stateChartData = useMemo(() => {
+        const stateCounts = {};
+        outletsData.forEach((outlet) => {
+            filteredCampaigns.forEach((campaign) => {
+                const retailerAssignment = campaign.assignedRetailers?.find(
+                    (r) => r.retailerId?._id === outlet.retailerId
+                );
+                if (retailerAssignment) {
+                    const state =
+                        retailerAssignment.retailerId?.shopDetails?.shopAddress
+                            ?.state || "Unknown";
+                    stateCounts[state] = (stateCounts[state] || 0) + 1;
+                }
+            });
+        });
+
+        const sortedStates = Object.entries(stateCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8);
+
+        return {
+            labels: sortedStates.map(([state]) => state),
+            datasets: [{ data: sortedStates.map(([, count]) => count) }],
+        };
+    }, [outletsData, filteredCampaigns]);
 
     const quickActions = [
         {
@@ -276,23 +541,16 @@ const ClientHomeScreen = ({ navigation }) => {
         },
         {
             id: 4,
-            title: "Contact Support",
-            icon: "call-outline",
-            description: "Get help and support",
-            screen: "ContactUs",
+            title: "Logout",
+            icon: "log-out-outline",
+            description: "Sign out of your account",
+            screen: "Logout",
             color: "#dc3545",
         },
     ];
 
     const handleQuickAction = useCallback(
         (action) => {
-            console.log("🔍 Quick action:", action.title);
-            console.log("🔍 Current navigator:", navigation.getState());
-            console.log(
-                "🔍 Parent navigator:",
-                navigation.getParent()?.getState()
-            );
-
             if (action.screen === "Passbook") {
                 navigation.navigate("ClientPassbook");
             } else if (action.screen === "ClientOutlets") {
@@ -302,6 +560,26 @@ const ClientHomeScreen = ({ navigation }) => {
                 }
             } else if (action.screen === "Reports") {
                 navigation.navigate("ClientReport");
+            } else if (action.screen === "Logout") {
+                Alert.alert("Logout", "Are you sure you want to logout?", [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                        text: "Logout",
+                        style: "destructive",
+                        onPress: async () => {
+                            try {
+                                await AsyncStorage.multiRemove([
+                                    "userToken",
+                                    "userData",
+                                ]);
+                                if (logout) logout();
+                                navigation.replace("Login");
+                            } catch (error) {
+                                console.error("Logout error:", error);
+                            }
+                        },
+                    },
+                ]);
             } else {
                 Alert.alert(
                     "Coming Soon",
@@ -310,7 +588,7 @@ const ClientHomeScreen = ({ navigation }) => {
                 );
             }
         },
-        [navigation]
+        [navigation, logout]
     );
 
     if (loading) {
@@ -356,12 +634,73 @@ const ClientHomeScreen = ({ navigation }) => {
                             place.
                         </Text>
                     </View>
-                    <View style={styles.welcomeIconContainer}>
-                        <Ionicons
-                            name="person-circle"
-                            size={60}
-                            color="#E4002B"
-                        />
+                    <TouchableOpacity
+                        style={styles.welcomeIconContainer}
+                        onPress={showImageOptions}
+                        disabled={uploadingImage}
+                        activeOpacity={0.7}
+                    >
+                        {uploadingImage ? (
+                            <ActivityIndicator size="small" color="#E4002B" />
+                        ) : clientImage ? (
+                            <>
+                                <Image
+                                    source={{ uri: clientImage }}
+                                    style={styles.clientImage}
+                                />
+                                <View style={styles.imageEditOverlay}>
+                                    <Ionicons
+                                        name="camera"
+                                        size={16}
+                                        color="#fff"
+                                    />
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                <Ionicons
+                                    name="person-circle"
+                                    size={60}
+                                    color="#E4002B"
+                                />
+                                <View style={styles.imageEditOverlay}>
+                                    <Ionicons
+                                        name="camera"
+                                        size={16}
+                                        color="#fff"
+                                    />
+                                </View>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </View>
+
+                {/* Campaign Filter */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Campaign Status</Text>
+                    <View style={styles.filterRow}>
+                        {["active", "inactive", "all"].map((filter) => (
+                            <TouchableOpacity
+                                key={filter}
+                                style={[
+                                    styles.filterButton,
+                                    campaignFilter === filter &&
+                                        styles.filterButtonActive,
+                                ]}
+                                onPress={() => setCampaignFilter(filter)}
+                            >
+                                <Text
+                                    style={[
+                                        styles.filterButtonText,
+                                        campaignFilter === filter &&
+                                            styles.filterButtonTextActive,
+                                    ]}
+                                >
+                                    {filter.charAt(0).toUpperCase() +
+                                        filter.slice(1)}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
                 </View>
 
@@ -392,46 +731,101 @@ const ClientHomeScreen = ({ navigation }) => {
                                 >
                                     {card.title}
                                 </Text>
+                                <Text
+                                    style={styles.summarySubtitle}
+                                    numberOfLines={2}
+                                >
+                                    {card.subtitle}
+                                </Text>
                             </View>
                         ))}
                     </View>
                 </View>
 
-                {/* Recent Activity */}
+                {/* Charts Section */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Recent Activity</Text>
-                    <View style={styles.activityCard}>
-                        {recentActivity.map((activity, index) => (
-                            <React.Fragment key={index}>
-                                <View style={styles.activityRow}>
-                                    <View
-                                        style={[
-                                            styles.activityIconWrapper,
-                                            {
-                                                backgroundColor: `${activity.iconColor}15`,
-                                            },
-                                        ]}
-                                    >
-                                        <Ionicons
-                                            name={activity.icon}
-                                            size={22}
-                                            color={activity.iconColor}
-                                        />
-                                    </View>
-                                    <View style={styles.activityTextContainer}>
-                                        <Text style={styles.activityTitle}>
-                                            {activity.title}
-                                        </Text>
-                                        <Text style={styles.activitySubtitle}>
-                                            {activity.subtitle}
-                                        </Text>
-                                    </View>
-                                </View>
-                                {index < recentActivity.length - 1 && (
-                                    <View style={styles.activityDivider} />
-                                )}
-                            </React.Fragment>
-                        ))}
+                    <Text style={styles.sectionTitle}>Analytics</Text>
+
+                    {/* Payment Status Chart */}
+                    <View style={styles.chartCard}>
+                        <Text style={styles.chartTitle}>
+                            Payment Status Distribution
+                        </Text>
+                        {paymentChartData.some((d) => d.count > 0) ? (
+                            <PieChart
+                                data={paymentChartData}
+                                width={screenWidth - 60}
+                                height={200}
+                                chartConfig={{
+                                    color: (opacity = 1) =>
+                                        `rgba(0, 0, 0, ${opacity})`,
+                                }}
+                                accessor="count"
+                                backgroundColor="transparent"
+                                paddingLeft="15"
+                                absolute
+                            />
+                        ) : (
+                            <Text style={styles.noDataText}>
+                                No payment data available
+                            </Text>
+                        )}
+                    </View>
+
+                    {/* Acceptance Status Chart */}
+                    <View style={styles.chartCard}>
+                        <Text style={styles.chartTitle}>
+                            Campaign Acceptance Status
+                        </Text>
+                        {acceptanceChartData.some((d) => d.count > 0) ? (
+                            <PieChart
+                                data={acceptanceChartData}
+                                width={screenWidth - 60}
+                                height={200}
+                                chartConfig={{
+                                    color: (opacity = 1) =>
+                                        `rgba(0, 0, 0, ${opacity})`,
+                                }}
+                                accessor="count"
+                                backgroundColor="transparent"
+                                paddingLeft="15"
+                                absolute
+                            />
+                        ) : (
+                            <Text style={styles.noDataText}>
+                                No acceptance data available
+                            </Text>
+                        )}
+                    </View>
+
+                    <View style={styles.chartCard}>
+                        <Text style={styles.chartTitle}>
+                            State-wise Distribution (Top 8)
+                        </Text>
+                        {stateChartData.labels.length > 0 ? (
+                            <BarChart
+                                data={stateChartData}
+                                width={screenWidth - 60}
+                                height={220}
+                                chartConfig={{
+                                    backgroundColor: "#fff",
+                                    backgroundGradientFrom: "#fff",
+                                    backgroundGradientTo: "#fff",
+                                    decimalPlaces: 0,
+                                    color: (opacity = 1) =>
+                                        `rgba(59, 130, 246, ${opacity})`,
+                                    labelColor: (opacity = 1) =>
+                                        `rgba(0, 0, 0, ${opacity})`,
+                                    propsForLabels: { fontSize: 10 },
+                                }}
+                                showValuesOnTopOfBars
+                                fromZero
+                            />
+                        ) : (
+                            <Text style={styles.noDataText}>
+                                No state data available
+                            </Text>
+                        )}
                     </View>
                 </View>
 
@@ -493,6 +887,13 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#F5F7FA",
     },
+    clientImage: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        borderWidth: 2,
+        borderColor: "#E4002B",
+    },
     scrollContent: {
         paddingBottom: Platform.OS === "ios" ? 100 : 90,
         paddingHorizontal: 16,
@@ -548,6 +949,45 @@ const styles = StyleSheet.create({
         color: "#1a1a1a",
         marginBottom: 12,
     },
+    filterRow: {
+        flexDirection: "row",
+        gap: 10,
+    },
+    imageEditOverlay: {
+        position: "absolute",
+        bottom: 0,
+        right: 0,
+        backgroundColor: "#E4002B",
+        borderRadius: 12,
+        width: 24,
+        height: 24,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: "#fff",
+    },
+    filterButton: {
+        flex: 1,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        alignItems: "center",
+    },
+    filterButtonActive: {
+        backgroundColor: "#E4002B",
+        borderColor: "#E4002B",
+    },
+    filterButtonText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#666",
+    },
+    filterButtonTextActive: {
+        color: "#fff",
+    },
     summaryRow: {
         flexDirection: "row",
         flexWrap: "wrap",
@@ -581,48 +1021,38 @@ const styles = StyleSheet.create({
     },
     summaryLabel: {
         fontSize: 12,
+        color: "#1a1a1a",
+        textAlign: "center",
+        fontWeight: "600",
+        marginBottom: 4,
+    },
+    summarySubtitle: {
+        fontSize: 10,
         color: "#666",
         textAlign: "center",
     },
-    activityCard: {
+    chartCard: {
         backgroundColor: "#fff",
         borderRadius: 16,
         padding: 16,
+        marginBottom: 16,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 6,
         elevation: 3,
     },
-    activityRow: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    activityIconWrapper: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        justifyContent: "center",
-        alignItems: "center",
-        marginRight: 12,
-    },
-    activityTextContainer: {
-        flex: 1,
-    },
-    activityTitle: {
-        fontSize: 15,
-        fontWeight: "600",
+    chartTitle: {
+        fontSize: 16,
+        fontWeight: "700",
         color: "#1a1a1a",
-        marginBottom: 2,
+        marginBottom: 12,
     },
-    activitySubtitle: {
-        fontSize: 13,
+    noDataText: {
+        textAlign: "center",
         color: "#666",
-    },
-    activityDivider: {
-        height: 1,
-        backgroundColor: "#E5E7EB",
-        marginVertical: 14,
+        fontSize: 14,
+        paddingVertical: 40,
     },
     actionsGrid: {
         gap: 12,
