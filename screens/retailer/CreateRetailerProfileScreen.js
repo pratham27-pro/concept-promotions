@@ -15,8 +15,8 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import DropDownPicker from "react-native-dropdown-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
+import SearchableDropdown from "../../components/common/SearchableDropdown";
 
 import { readAsStringAsync } from "expo-file-system/legacy";
 import PennyTransferModal from "../../components/PennyTransferModal";
@@ -1192,7 +1192,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
 
                         <View style={[styles.inputGroup, { zIndex: 5000 }]}>
                             <Text style={styles.label}>Gender</Text>
-                            <DropDownPicker
+                            <SearchableDropdown
                                 open={genderOpen}
                                 value={gender}
                                 items={genderOptions}
@@ -1213,7 +1213,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                 Government ID Type{" "}
                                 <Text style={{ color: "red" }}> *</Text>
                             </Text>
-                            <DropDownPicker
+                            <SearchableDropdown
                                 open={govtIdTypeOpen}
                                 value={govtIdType}
                                 items={govtIdOptions}
@@ -1315,7 +1315,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                 Business Type{" "}
                                 <Text style={{ color: "red" }}> *</Text>
                             </Text>
-                            <DropDownPicker
+                            <SearchableDropdown
                                 open={businessTypeOpen}
                                 value={businessType}
                                 items={businessTypeOptions}
@@ -1336,7 +1336,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                 Ownership Type{" "}
                                 <Text style={{ color: "red" }}> *</Text>
                             </Text>
-                            <DropDownPicker
+                            <SearchableDropdown
                                 open={ownershipTypeOpen}
                                 value={ownershipType}
                                 items={ownershipTypeOptions}
@@ -1447,7 +1447,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                             <Text style={styles.label}>
                                 State <Text style={{ color: "red" }}> *</Text>
                             </Text>
-                            <DropDownPicker
+                            <SearchableDropdown
                                 open={stateOpen}
                                 value={state}
                                 items={stateOptions}
@@ -1534,7 +1534,7 @@ const CreateRetailerProfileScreen = ({ navigation }) => {
                                 Bank Name{" "}
                                 <Text style={{ color: "red" }}> *</Text>
                             </Text>
-                            <DropDownPicker
+                            <SearchableDropdown
                                 open={bankNameOpen}
                                 value={bankName}
                                 items={bankOptions}

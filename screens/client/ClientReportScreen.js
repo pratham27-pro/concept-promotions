@@ -15,7 +15,6 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    TouchableWithoutFeedback,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -488,618 +487,490 @@ const ClientReportScreen = ({ navigation }) => {
         <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <StatusBar style="dark" />
             <Header title="View Reports" />
-            <TouchableWithoutFeedback onPress={closeAllDropdowns}>
-                <View style={{ flex: 1 }}>
-                    <ScrollView
-                        ref={scrollViewRef}
-                        style={styles.scrollView}
-                        showsVerticalScrollIndicator={false}
-                        nestedScrollEnabled={true}
-                        refreshControl={
-                            <RefreshControl
-                                refreshing={refreshing}
-                                onRefresh={onRefresh}
-                                colors={["#E4002B"]}
-                                tintColor={"#E4002B"}
-                            />
-                        }
-                    >
-                        <View>
-                            {/* Filters Section */}
-                            <View style={styles.filtersContainer}>
-                                <Text style={styles.filtersTitle}>
-                                    Filter Reports (All Optional)
+            <ScrollView
+                ref={scrollViewRef}
+                style={styles.scrollView}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={true}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={["#E4002B"]}
+                        tintColor={"#E4002B"}
+                    />
+                }
+            >
+                <View>
+                    {/* Filters Section */}
+                    <View style={styles.filtersContainer}>
+                        <Text style={styles.filtersTitle}>
+                            Filter Reports (All Optional)
+                        </Text>
+
+                        {/* Campaign Status Dropdown */}
+                        <SearchableDropdown
+                            label="Campaign Status"
+                            placeholder="Select Status"
+                            open={statusOpen}
+                            value={selectedStatus}
+                            items={statusOptions}
+                            setOpen={setStatusOpen}
+                            setValue={setSelectedStatus}
+                            setItems={() => {}}
+                            searchable={false}
+                            multiple={false}
+                            zIndex={10000}
+                            onOpen={handleStatusOpen}
+                            onChangeValue={handleStatusChange}
+                        />
+
+                        {/* Campaign Dropdown */}
+                        <SearchableDropdown
+                            label="Campaign"
+                            placeholder="Select Campaign"
+                            open={campaignOpen}
+                            value={selectedCampaign}
+                            items={campaignItems}
+                            setOpen={setCampaignOpen}
+                            setValue={setSelectedCampaign}
+                            setItems={setCampaignItems}
+                            searchable={true}
+                            multiple={false}
+                            zIndex={9000}
+                            onOpen={handleCampaignOpen}
+                            onChangeValue={handleCampaignChange}
+                        />
+
+                        {/* Report Type Dropdown */}
+                        <SearchableDropdown
+                            label="Report Type"
+                            placeholder="Select Report Type"
+                            open={reportTypeOpen}
+                            value={selectedReportType}
+                            items={reportTypeOptions}
+                            setOpen={setReportTypeOpen}
+                            setValue={setSelectedReportType}
+                            setItems={() => {}}
+                            searchable={false}
+                            multiple={false}
+                            zIndex={8000}
+                            onOpen={handleReportTypeOpen}
+                        />
+
+                        {/* State Dropdown */}
+                        <SearchableDropdown
+                            label="State"
+                            placeholder="Select State"
+                            open={stateOpen}
+                            value={selectedState}
+                            items={stateItems}
+                            setOpen={setStateOpen}
+                            setValue={setSelectedState}
+                            setItems={setStateItems}
+                            searchable={true}
+                            multiple={false}
+                            zIndex={7000}
+                            onOpen={handleStateOpen}
+                            onChangeValue={handleStateChange}
+                        />
+
+                        {/* Retailer Dropdown */}
+                        <SearchableDropdown
+                            label="Retailer"
+                            placeholder="Select Retailer"
+                            open={retailerOpen}
+                            value={selectedRetailer}
+                            items={retailerItems}
+                            setOpen={setRetailerOpen}
+                            setValue={setSelectedRetailer}
+                            setItems={setRetailerItems}
+                            searchable={true}
+                            multiple={false}
+                            zIndex={6000}
+                            onOpen={handleRetailerOpen}
+                        />
+
+                        {/* Date Range */}
+                        <View style={styles.dateRangeContainer}>
+                            <View style={styles.dateItem}>
+                                <Text style={styles.filterLabel}>
+                                    From Date
                                 </Text>
-
-                                {/* Campaign Status Dropdown */}
-                                <SearchableDropdown
-                                    label="Campaign Status"
-                                    placeholder="Select Status"
-                                    open={statusOpen}
-                                    value={selectedStatus}
-                                    items={statusOptions}
-                                    setOpen={setStatusOpen}
-                                    setValue={setSelectedStatus}
-                                    setItems={() => {}}
-                                    searchable={false}
-                                    multiple={false}
-                                    zIndex={10000}
-                                    onOpen={handleStatusOpen}
-                                    onChangeValue={handleStatusChange}
-                                />
-
-                                {/* Campaign Dropdown */}
-                                <SearchableDropdown
-                                    label="Campaign"
-                                    placeholder="Select Campaign"
-                                    open={campaignOpen}
-                                    value={selectedCampaign}
-                                    items={campaignItems}
-                                    setOpen={setCampaignOpen}
-                                    setValue={setSelectedCampaign}
-                                    setItems={setCampaignItems}
-                                    searchable={true}
-                                    multiple={false}
-                                    zIndex={9000}
-                                    onOpen={handleCampaignOpen}
-                                    onChangeValue={handleCampaignChange}
-                                />
-
-                                {/* Report Type Dropdown */}
-                                <SearchableDropdown
-                                    label="Report Type"
-                                    placeholder="Select Report Type"
-                                    open={reportTypeOpen}
-                                    value={selectedReportType}
-                                    items={reportTypeOptions}
-                                    setOpen={setReportTypeOpen}
-                                    setValue={setSelectedReportType}
-                                    setItems={() => {}}
-                                    searchable={false}
-                                    multiple={false}
-                                    zIndex={8000}
-                                    onOpen={handleReportTypeOpen}
-                                />
-
-                                {/* State Dropdown */}
-                                <SearchableDropdown
-                                    label="State"
-                                    placeholder="Select State"
-                                    open={stateOpen}
-                                    value={selectedState}
-                                    items={stateItems}
-                                    setOpen={setStateOpen}
-                                    setValue={setSelectedState}
-                                    setItems={setStateItems}
-                                    searchable={true}
-                                    multiple={false}
-                                    zIndex={7000}
-                                    onOpen={handleStateOpen}
-                                    onChangeValue={handleStateChange}
-                                />
-
-                                {/* Retailer Dropdown */}
-                                <SearchableDropdown
-                                    label="Retailer"
-                                    placeholder="Select Retailer"
-                                    open={retailerOpen}
-                                    value={selectedRetailer}
-                                    items={retailerItems}
-                                    setOpen={setRetailerOpen}
-                                    setValue={setSelectedRetailer}
-                                    setItems={setRetailerItems}
-                                    searchable={true}
-                                    multiple={false}
-                                    zIndex={6000}
-                                    onOpen={handleRetailerOpen}
-                                />
-
-                                {/* Date Range */}
-                                <View style={styles.dateRangeContainer}>
-                                    <View style={styles.dateItem}>
-                                        <Text style={styles.filterLabel}>
-                                            From Date
-                                        </Text>
-                                        <TouchableOpacity
-                                            style={styles.dateButton}
-                                            onPress={() =>
-                                                setShowFromDatePicker(true)
-                                            }
-                                        >
-                                            <Text style={styles.dateButtonText}>
-                                                {formatDateShort(fromDate)}
-                                            </Text>
-                                            <Ionicons
-                                                name="calendar"
-                                                size={18}
-                                                color="#666"
-                                            />
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    <View style={styles.dateItem}>
-                                        <Text style={styles.filterLabel}>
-                                            To Date
-                                        </Text>
-                                        <TouchableOpacity
-                                            style={styles.dateButton}
-                                            onPress={() =>
-                                                setShowToDatePicker(true)
-                                            }
-                                        >
-                                            <Text style={styles.dateButtonText}>
-                                                {formatDateShort(toDate)}
-                                            </Text>
-                                            <Ionicons
-                                                name="calendar"
-                                                size={18}
-                                                color="#666"
-                                            />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                {/* Action Buttons */}
-                                <View style={styles.actionButtonsContainer}>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.searchButton,
-                                            loading &&
-                                                styles.searchButtonDisabled,
-                                        ]}
-                                        onPress={() => fetchReports(1)}
-                                        disabled={loading}
-                                    >
-                                        {loading ? (
-                                            <ActivityIndicator
-                                                color="#fff"
-                                                size="small"
-                                            />
-                                        ) : (
-                                            <>
-                                                <Ionicons
-                                                    name="search"
-                                                    size={20}
-                                                    color="#fff"
-                                                />
-                                                <Text
-                                                    style={
-                                                        styles.searchButtonText
-                                                    }
-                                                >
-                                                    Search Reports
-                                                </Text>
-                                            </>
-                                        )}
-                                    </TouchableOpacity>
-
-                                    {(selectedCampaign ||
-                                        selectedRetailer ||
-                                        selectedState ||
-                                        selectedReportType ||
-                                        fromDate ||
-                                        toDate) && (
-                                        <TouchableOpacity
-                                            style={styles.clearButton}
-                                            onPress={handleClearFilters}
-                                        >
-                                            <Ionicons
-                                                name="close-circle"
-                                                size={18}
-                                                color="#E4002B"
-                                            />
-                                            <Text
-                                                style={styles.clearButtonText}
-                                            >
-                                                Clear Filters
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
+                                <TouchableOpacity
+                                    style={styles.dateButton}
+                                    onPress={() => setShowFromDatePicker(true)}
+                                >
+                                    <Text style={styles.dateButtonText}>
+                                        {formatDateShort(fromDate)}
+                                    </Text>
+                                    <Ionicons
+                                        name="calendar"
+                                        size={18}
+                                        color="#666"
+                                    />
+                                </TouchableOpacity>
                             </View>
 
-                            {/* Reports Table */}
-                            {!loading &&
-                                hasSearched &&
-                                displayReports.length > 0 && (
-                                    <View style={styles.reportsContainer}>
-                                        <View style={styles.reportsHeader}>
-                                            <Text style={styles.reportsTitle}>
-                                                Reports ({totalReports} found)
-                                            </Text>
+                            <View style={styles.dateItem}>
+                                <Text style={styles.filterLabel}>To Date</Text>
+                                <TouchableOpacity
+                                    style={styles.dateButton}
+                                    onPress={() => setShowToDatePicker(true)}
+                                >
+                                    <Text style={styles.dateButtonText}>
+                                        {formatDateShort(toDate)}
+                                    </Text>
+                                    <Ionicons
+                                        name="calendar"
+                                        size={18}
+                                        color="#666"
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* Action Buttons */}
+                        <View style={styles.actionButtonsContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.searchButton,
+                                    loading && styles.searchButtonDisabled,
+                                ]}
+                                onPress={() => fetchReports(1)}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator
+                                        color="#fff"
+                                        size="small"
+                                    />
+                                ) : (
+                                    <>
+                                        <Ionicons
+                                            name="search"
+                                            size={20}
+                                            color="#fff"
+                                        />
+                                        <Text style={styles.searchButtonText}>
+                                            Search Reports
+                                        </Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+
+                            {(selectedCampaign ||
+                                selectedRetailer ||
+                                selectedState ||
+                                selectedReportType ||
+                                fromDate ||
+                                toDate) && (
+                                <TouchableOpacity
+                                    style={styles.clearButton}
+                                    onPress={handleClearFilters}
+                                >
+                                    <Ionicons
+                                        name="close-circle"
+                                        size={18}
+                                        color="#E4002B"
+                                    />
+                                    <Text style={styles.clearButtonText}>
+                                        Clear Filters
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </View>
+
+                    {/* Reports Table */}
+                    {!loading && hasSearched && displayReports.length > 0 && (
+                        <View style={styles.reportsContainer}>
+                            <View style={styles.reportsHeader}>
+                                <Text style={styles.reportsTitle}>
+                                    Reports ({totalReports} found)
+                                </Text>
+                                <Text style={styles.reportsSubtitle}>
+                                    Showing {(currentPage - 1) * limit + 1} to{" "}
+                                    {Math.min(
+                                        currentPage * limit,
+                                        totalReports
+                                    )}{" "}
+                                    of {totalReports}
+                                </Text>
+                            </View>
+
+                            {displayReports.map((report, index) => (
+                                <View
+                                    key={report._id}
+                                    style={styles.reportCard}
+                                >
+                                    <View style={styles.reportHeader}>
+                                        <View style={styles.reportNumber}>
                                             <Text
-                                                style={styles.reportsSubtitle}
+                                                style={styles.reportNumberText}
                                             >
-                                                Showing{" "}
-                                                {(currentPage - 1) * limit + 1}{" "}
-                                                to{" "}
-                                                {Math.min(
-                                                    currentPage * limit,
-                                                    totalReports
-                                                )}{" "}
-                                                of {totalReports}
+                                                #
+                                                {(currentPage - 1) * limit +
+                                                    index +
+                                                    1}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.reportTypeBadge}>
+                                            <Text
+                                                style={
+                                                    styles.reportTypeBadgeText
+                                                }
+                                            >
+                                                {report.reportType || "N/A"}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.reportBody}>
+                                        <View style={styles.reportRow}>
+                                            <Ionicons
+                                                name="business"
+                                                size={16}
+                                                color="#666"
+                                            />
+                                            <Text style={styles.reportLabel}>
+                                                Campaign:
+                                            </Text>
+                                            <Text style={styles.reportValue}>
+                                                {report.campaignId?.name ||
+                                                    "N/A"}
                                             </Text>
                                         </View>
 
-                                        {displayReports.map((report, index) => (
-                                            <View
-                                                key={report._id}
-                                                style={styles.reportCard}
-                                            >
-                                                <View
-                                                    style={styles.reportHeader}
-                                                >
-                                                    <View
-                                                        style={
-                                                            styles.reportNumber
-                                                        }
-                                                    >
-                                                        <Text
-                                                            style={
-                                                                styles.reportNumberText
-                                                            }
-                                                        >
-                                                            #
-                                                            {(currentPage - 1) *
-                                                                limit +
-                                                                index +
-                                                                1}
-                                                        </Text>
-                                                    </View>
-                                                    <View
-                                                        style={
-                                                            styles.reportTypeBadge
-                                                        }
-                                                    >
-                                                        <Text
-                                                            style={
-                                                                styles.reportTypeBadgeText
-                                                            }
-                                                        >
-                                                            {report.reportType ||
-                                                                "N/A"}
-                                                        </Text>
-                                                    </View>
-                                                </View>
+                                        <View style={styles.reportRow}>
+                                            <Ionicons
+                                                name="person"
+                                                size={16}
+                                                color="#666"
+                                            />
+                                            <Text style={styles.reportLabel}>
+                                                Retailer:
+                                            </Text>
+                                            <Text style={styles.reportValue}>
+                                                {report.retailer
+                                                    ?.retailerName || "N/A"}
+                                            </Text>
+                                        </View>
 
-                                                <View style={styles.reportBody}>
-                                                    <View
-                                                        style={styles.reportRow}
-                                                    >
-                                                        <Ionicons
-                                                            name="business"
-                                                            size={16}
-                                                            color="#666"
-                                                        />
-                                                        <Text
-                                                            style={
-                                                                styles.reportLabel
-                                                            }
-                                                        >
-                                                            Campaign:
-                                                        </Text>
-                                                        <Text
-                                                            style={
-                                                                styles.reportValue
-                                                            }
-                                                        >
-                                                            {report.campaignId
-                                                                ?.name || "N/A"}
-                                                        </Text>
-                                                    </View>
+                                        <View style={styles.reportRow}>
+                                            <Ionicons
+                                                name="storefront"
+                                                size={16}
+                                                color="#666"
+                                            />
+                                            <Text style={styles.reportLabel}>
+                                                Outlet:
+                                            </Text>
+                                            <Text style={styles.reportValue}>
+                                                {report.retailer?.outletName ||
+                                                    "N/A"}
+                                            </Text>
+                                        </View>
 
-                                                    <View
-                                                        style={styles.reportRow}
-                                                    >
-                                                        <Ionicons
-                                                            name="person"
-                                                            size={16}
-                                                            color="#666"
-                                                        />
-                                                        <Text
-                                                            style={
-                                                                styles.reportLabel
-                                                            }
-                                                        >
-                                                            Retailer:
-                                                        </Text>
-                                                        <Text
-                                                            style={
-                                                                styles.reportValue
-                                                            }
-                                                        >
-                                                            {report.retailer
-                                                                ?.retailerName ||
-                                                                "N/A"}
-                                                        </Text>
-                                                    </View>
+                                        <View style={styles.reportRow}>
+                                            <Ionicons
+                                                name="pricetag"
+                                                size={16}
+                                                color="#666"
+                                            />
+                                            <Text style={styles.reportLabel}>
+                                                Code:
+                                            </Text>
+                                            <Text style={styles.reportValue}>
+                                                {report.retailer?.outletCode ||
+                                                    "N/A"}
+                                            </Text>
+                                        </View>
 
-                                                    <View
-                                                        style={styles.reportRow}
-                                                    >
-                                                        <Ionicons
-                                                            name="storefront"
-                                                            size={16}
-                                                            color="#666"
-                                                        />
-                                                        <Text
-                                                            style={
-                                                                styles.reportLabel
-                                                            }
-                                                        >
-                                                            Outlet:
-                                                        </Text>
-                                                        <Text
-                                                            style={
-                                                                styles.reportValue
-                                                            }
-                                                        >
-                                                            {report.retailer
-                                                                ?.outletName ||
-                                                                "N/A"}
-                                                        </Text>
-                                                    </View>
-
-                                                    <View
-                                                        style={styles.reportRow}
-                                                    >
-                                                        <Ionicons
-                                                            name="pricetag"
-                                                            size={16}
-                                                            color="#666"
-                                                        />
-                                                        <Text
-                                                            style={
-                                                                styles.reportLabel
-                                                            }
-                                                        >
-                                                            Code:
-                                                        </Text>
-                                                        <Text
-                                                            style={
-                                                                styles.reportValue
-                                                            }
-                                                        >
-                                                            {report.retailer
-                                                                ?.outletCode ||
-                                                                "N/A"}
-                                                        </Text>
-                                                    </View>
-
-                                                    <View
-                                                        style={styles.reportRow}
-                                                    >
-                                                        <Ionicons
-                                                            name="calendar"
-                                                            size={16}
-                                                            color="#666"
-                                                        />
-                                                        <Text
-                                                            style={
-                                                                styles.reportLabel
-                                                            }
-                                                        >
-                                                            Date:
-                                                        </Text>
-                                                        <Text
-                                                            style={
-                                                                styles.reportValue
-                                                            }
-                                                        >
-                                                            {formatDate(
-                                                                report.dateOfSubmission ||
-                                                                    report.createdAt
-                                                            )}
-                                                        </Text>
-                                                    </View>
-                                                </View>
-
-                                                <TouchableOpacity
-                                                    style={
-                                                        styles.viewDetailsButton
-                                                    }
-                                                    onPress={() =>
-                                                        handleViewDetails(
-                                                            report
-                                                        )
-                                                    }
-                                                >
-                                                    <Text
-                                                        style={
-                                                            styles.viewDetailsText
-                                                        }
-                                                    >
-                                                        View Details
-                                                    </Text>
-                                                    <Ionicons
-                                                        name="arrow-forward"
-                                                        size={18}
-                                                        color="#E4002B"
-                                                    />
-                                                </TouchableOpacity>
-                                            </View>
-                                        ))}
-
-                                        {/* Pagination */}
-                                        {totalPages > 1 && (
-                                            <View
-                                                style={
-                                                    styles.paginationContainer
-                                                }
-                                            >
-                                                <Text
-                                                    style={
-                                                        styles.paginationText
-                                                    }
-                                                >
-                                                    Page {currentPage} of{" "}
-                                                    {totalPages}
-                                                </Text>
-
-                                                <View
-                                                    style={
-                                                        styles.paginationButtons
-                                                    }
-                                                >
-                                                    <TouchableOpacity
-                                                        style={[
-                                                            styles.paginationButton,
-                                                            currentPage === 1 &&
-                                                                styles.paginationButtonDisabled,
-                                                        ]}
-                                                        onPress={() =>
-                                                            handlePageChange(
-                                                                currentPage - 1
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            currentPage === 1
-                                                        }
-                                                    >
-                                                        <Ionicons
-                                                            name="chevron-back"
-                                                            size={20}
-                                                            color="#fff"
-                                                        />
-                                                    </TouchableOpacity>
-
-                                                    <Text
-                                                        style={
-                                                            styles.paginationPageText
-                                                        }
-                                                    >
-                                                        {currentPage}
-                                                    </Text>
-
-                                                    <TouchableOpacity
-                                                        style={[
-                                                            styles.paginationButton,
-                                                            currentPage ===
-                                                                totalPages &&
-                                                                styles.paginationButtonDisabled,
-                                                        ]}
-                                                        onPress={() =>
-                                                            handlePageChange(
-                                                                currentPage + 1
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            currentPage ===
-                                                            totalPages
-                                                        }
-                                                    >
-                                                        <Ionicons
-                                                            name="chevron-forward"
-                                                            size={20}
-                                                            color="#fff"
-                                                        />
-                                                    </TouchableOpacity>
-                                                </View>
-                                            </View>
-                                        )}
+                                        <View style={styles.reportRow}>
+                                            <Ionicons
+                                                name="calendar"
+                                                size={16}
+                                                color="#666"
+                                            />
+                                            <Text style={styles.reportLabel}>
+                                                Date:
+                                            </Text>
+                                            <Text style={styles.reportValue}>
+                                                {formatDate(
+                                                    report.dateOfSubmission ||
+                                                        report.createdAt
+                                                )}
+                                            </Text>
+                                        </View>
                                     </View>
-                                )}
 
-                            {/* Loading State */}
-                            {loading && (
-                                <View style={styles.loadingContainer}>
-                                    <ActivityIndicator
-                                        size="large"
-                                        color="#E4002B"
-                                    />
-                                    <Text style={styles.loadingText}>
-                                        Loading reports...
-                                    </Text>
-                                </View>
-                            )}
-
-                            {/* Empty State - No Results */}
-                            {!loading &&
-                                hasSearched &&
-                                displayReports.length === 0 && (
-                                    <View style={styles.emptyState}>
+                                    <TouchableOpacity
+                                        style={styles.viewDetailsButton}
+                                        onPress={() =>
+                                            handleViewDetails(report)
+                                        }
+                                    >
+                                        <Text style={styles.viewDetailsText}>
+                                            View Details
+                                        </Text>
                                         <Ionicons
-                                            name="folder-open-outline"
-                                            size={64}
-                                            color="#ccc"
+                                            name="arrow-forward"
+                                            size={18}
+                                            color="#E4002B"
                                         />
-                                        <Text style={styles.emptyStateTitle}>
-                                            No reports found
-                                        </Text>
-                                        <Text style={styles.emptyStateText}>
-                                            Try adjusting your search criteria
-                                            or clear filters to see all reports.
-                                        </Text>
-                                    </View>
-                                )}
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
 
-                            {/* Empty State - Ready to Search */}
-                            {!hasSearched && (
-                                <View style={styles.emptyState}>
-                                    <Ionicons
-                                        name="search-outline"
-                                        size={64}
-                                        color="#E4002B"
-                                    />
-                                    <Text style={styles.emptyStateTitle}>
-                                        Ready to search reports
+                            {/* Pagination */}
+                            {totalPages > 1 && (
+                                <View style={styles.paginationContainer}>
+                                    <Text style={styles.paginationText}>
+                                        Page {currentPage} of {totalPages}
                                     </Text>
-                                    <Text style={styles.emptyStateText}>
-                                        Click "Search Reports" to view reports
-                                        with your selected filters.
-                                    </Text>
+
+                                    <View style={styles.paginationButtons}>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.paginationButton,
+                                                currentPage === 1 &&
+                                                    styles.paginationButtonDisabled,
+                                            ]}
+                                            onPress={() =>
+                                                handlePageChange(
+                                                    currentPage - 1
+                                                )
+                                            }
+                                            disabled={currentPage === 1}
+                                        >
+                                            <Ionicons
+                                                name="chevron-back"
+                                                size={20}
+                                                color="#fff"
+                                            />
+                                        </TouchableOpacity>
+
+                                        <Text style={styles.paginationPageText}>
+                                            {currentPage}
+                                        </Text>
+
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.paginationButton,
+                                                currentPage === totalPages &&
+                                                    styles.paginationButtonDisabled,
+                                            ]}
+                                            onPress={() =>
+                                                handlePageChange(
+                                                    currentPage + 1
+                                                )
+                                            }
+                                            disabled={
+                                                currentPage === totalPages
+                                            }
+                                        >
+                                            <Ionicons
+                                                name="chevron-forward"
+                                                size={20}
+                                                color="#fff"
+                                            />
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             )}
                         </View>
-                    </ScrollView>
-
-                    {/* Date Pickers */}
-                    {showFromDatePicker && (
-                        <DateTimePicker
-                            value={fromDate || new Date()}
-                            mode="date"
-                            display={
-                                Platform.OS === "ios" ? "spinner" : "default"
-                            }
-                            onChange={(event, selectedDate) => {
-                                setShowFromDatePicker(Platform.OS === "ios");
-                                if (selectedDate) {
-                                    setFromDate(selectedDate);
-                                }
-                            }}
-                        />
                     )}
 
-                    {showToDatePicker && (
-                        <DateTimePicker
-                            value={toDate || new Date()}
-                            mode="date"
-                            display={
-                                Platform.OS === "ios" ? "spinner" : "default"
-                            }
-                            onChange={(event, selectedDate) => {
-                                setShowToDatePicker(Platform.OS === "ios");
-                                if (selectedDate) {
-                                    setToDate(selectedDate);
-                                }
-                            }}
-                        />
+                    {/* Loading State */}
+                    {loading && (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color="#E4002B" />
+                            <Text style={styles.loadingText}>
+                                Loading reports...
+                            </Text>
+                        </View>
                     )}
 
-                    {/* Report Details Modal */}
-                    {showReportDetailsModal && (
-                        <ReportDetails
-                            visible={showReportDetailsModal}
-                            report={selectedReport}
-                            loading={loadingReport}
-                            onClose={() => {
-                                setShowReportDetailsModal(false);
-                                setSelectedReport(null);
-                            }}
-                        />
+                    {/* Empty State - No Results */}
+                    {!loading && hasSearched && displayReports.length === 0 && (
+                        <View style={styles.emptyState}>
+                            <Ionicons
+                                name="folder-open-outline"
+                                size={64}
+                                color="#ccc"
+                            />
+                            <Text style={styles.emptyStateTitle}>
+                                No reports found
+                            </Text>
+                            <Text style={styles.emptyStateText}>
+                                Try adjusting your search criteria or clear
+                                filters to see all reports.
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Empty State - Ready to Search */}
+                    {!hasSearched && (
+                        <View style={styles.emptyState}>
+                            <Ionicons
+                                name="search-outline"
+                                size={64}
+                                color="#E4002B"
+                            />
+                            <Text style={styles.emptyStateTitle}>
+                                Ready to search reports
+                            </Text>
+                            <Text style={styles.emptyStateText}>
+                                Click "Search Reports" to view reports with your
+                                selected filters.
+                            </Text>
+                        </View>
                     )}
                 </View>
-            </TouchableWithoutFeedback>
+            </ScrollView>
+
+            {/* Date Pickers */}
+            {showFromDatePicker && (
+                <DateTimePicker
+                    value={fromDate || new Date()}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={(event, selectedDate) => {
+                        setShowFromDatePicker(Platform.OS === "ios");
+                        if (selectedDate) {
+                            setFromDate(selectedDate);
+                        }
+                    }}
+                />
+            )}
+
+            {showToDatePicker && (
+                <DateTimePicker
+                    value={toDate || new Date()}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={(event, selectedDate) => {
+                        setShowToDatePicker(Platform.OS === "ios");
+                        if (selectedDate) {
+                            setToDate(selectedDate);
+                        }
+                    }}
+                />
+            )}
+
+            {/* Report Details Modal */}
+            {showReportDetailsModal && (
+                <ReportDetails
+                    visible={showReportDetailsModal}
+                    report={selectedReport}
+                    loading={loadingReport}
+                    onClose={() => {
+                        setShowReportDetailsModal(false);
+                        setSelectedReport(null);
+                    }}
+                />
+            )}
         </SafeAreaView>
     );
 };

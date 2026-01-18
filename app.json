@@ -4,11 +4,11 @@
     "slug": "concept-promotions",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/supreme.jpg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/supreme.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -29,7 +29,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.prathamorganization.conceptpromotions",
+      "bundleIdentifier": "in.conceptpromotions",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to geotag photos in reports.",
         "NSCameraUsageDescription": "This app needs access to your camera to take geotagged photos for reports.",
@@ -37,9 +37,9 @@
       }
     },
     "android": {
-      "package": "com.prathamorganization.conceptpromotions",
+      "package": "in.conceptpromotions",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/supreme.jpg",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -49,8 +49,12 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -62,6 +66,12 @@
       "eas": {
         "projectId": "3082a1d9-50ae-4254-a1fa-fd91a1e018f8"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3082a1d9-50ae-4254-a1fa-fd91a1e018f8"
     }
   }
 }
