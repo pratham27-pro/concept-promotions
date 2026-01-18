@@ -3,10 +3,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
+    FlatList,
     Image,
     Linking,
     Platform,
@@ -31,6 +33,10 @@ const RetailerDashboardScreen = ({ navigation }) => {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
+    const flatListRef = useRef(null);
 
     // Fetch campaigns on screen focus
     useFocusEffect(
@@ -225,6 +231,51 @@ const RetailerDashboardScreen = ({ navigation }) => {
         Alert.alert("Notifications", "You have no new notifications");
     };
 
+    const renderImageCarousel = (campaign) => {
+        const bannerImages = campaign?.rawData?.info?.banners || [];
+
+        // Show placeholder if no images
+        if (!bannerImages || bannerImages.length === 0) {
+            return;
+        }
+
+        const screenWidth = Dimensions.get("window").width;
+
+        return (
+            <View style={styles.carouselContainer}>
+                <FlatList
+                    data={bannerImages}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(item, index) => `${campaign.id}-${index}`}
+                    renderItem={({ item }) => (
+                        <View
+                            style={[
+                                styles.imageSlide,
+                                { width: screenWidth - 40 },
+                            ]}
+                        >
+                            <Image
+                                source={{ uri: item.url }}
+                                style={styles.bannerImage}
+                                resizeMode="cover"
+                            />
+                        </View>
+                    )}
+                />
+
+                {bannerImages.length > 1 && (
+                    <View style={styles.paginationContainer}>
+                        {bannerImages.map((_, index) => (
+                            <View key={index} style={[styles.paginationDot]} />
+                        ))}
+                    </View>
+                )}
+            </View>
+        );
+    };
+
     if (loading) {
         return (
             <SafeAreaView
@@ -307,11 +358,11 @@ const RetailerDashboardScreen = ({ navigation }) => {
                     ) : (
                         campaigns.map((campaign) => (
                             <View key={campaign.id} style={styles.campaignCard}>
-                                {/* Campaign Image */}
-                                <Image
-                                    source={{ uri: campaign.image }}
-                                    style={styles.campaignImage}
-                                />
+                                {/* Campaign Image - Remove this default image */}
+                                {/* <Image source={{ uri: campaign.image }} style={styles.campaignImage} /> */}
+
+                                {/* Banner Carousel - MOVE HERE, BEFORE CONTENT */}
+                                {renderImageCarousel(campaign)}
 
                                 {/* Campaign Content */}
                                 <View style={styles.campaignContent}>
@@ -332,18 +383,30 @@ const RetailerDashboardScreen = ({ navigation }) => {
 
                                 {/* Action Buttons */}
                                 <View style={styles.actionButtons}>
+                                    {/* View Details Button - Show always, but disable if rejected */}
                                     <TouchableOpacity
-                                        style={styles.viewDetailsButton}
+                                        style={[
+                                            styles.viewDetailsButton,
+                                            campaign.status === "rejected" &&
+                                                styles.disabledButton,
+                                        ]}
                                         onPress={() =>
                                             handleViewDetails(campaign)
                                         }
+                                        disabled={
+                                            campaign.status === "rejected"
+                                        }
                                     >
                                         <Text style={styles.viewDetailsText}>
-                                            View Details
+                                            {campaign.status === "rejected"
+                                                ? "Campaign Rejected"
+                                                : "View Details"}
                                         </Text>
                                     </TouchableOpacity>
 
-                                    {campaign.status === null && (
+                                    {/* Accept/Reject Buttons - Only if status is null/undefined */}
+                                    {(!campaign.status ||
+                                        campaign.status === "pending") && (
                                         <View
                                             style={styles.acceptRejectButtons}
                                         >
@@ -352,28 +415,45 @@ const RetailerDashboardScreen = ({ navigation }) => {
                                                 onPress={() =>
                                                     handleAccept(campaign.id)
                                                 }
+                                                disabled={updatingStatus}
                                             >
-                                                <Text
-                                                    style={
-                                                        styles.acceptButtonText
-                                                    }
-                                                >
-                                                    Accept
-                                                </Text>
+                                                {updatingStatus ? (
+                                                    <ActivityIndicator
+                                                        size="small"
+                                                        color="#fff"
+                                                    />
+                                                ) : (
+                                                    <Text
+                                                        style={
+                                                            styles.acceptButtonText
+                                                        }
+                                                    >
+                                                        ✓ Accept
+                                                    </Text>
+                                                )}
                                             </TouchableOpacity>
+
                                             <TouchableOpacity
                                                 style={styles.rejectButton}
                                                 onPress={() =>
                                                     handleReject(campaign.id)
                                                 }
+                                                disabled={updatingStatus}
                                             >
-                                                <Text
-                                                    style={
-                                                        styles.rejectButtonText
-                                                    }
-                                                >
-                                                    Reject
-                                                </Text>
+                                                {updatingStatus ? (
+                                                    <ActivityIndicator
+                                                        size="small"
+                                                        color="#fff"
+                                                    />
+                                                ) : (
+                                                    <Text
+                                                        style={
+                                                            styles.rejectButtonText
+                                                        }
+                                                    >
+                                                        ✗ Reject
+                                                    </Text>
+                                                )}
                                             </TouchableOpacity>
                                         </View>
                                     )}
@@ -673,6 +753,42 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#666",
         marginLeft: 8,
+    },
+    carouselContainer: {
+        width: "100%",
+        backgroundColor: "#f0f0f0",
+    },
+    imageSlide: {
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    bannerImage: {
+        width: "100%",
+        height: 180,
+    },
+    paginationContainer: {
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        paddingVertical: 10,
+        backgroundColor: "#fff",
+    },
+    paginationDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#ccc",
+        marginHorizontal: 4,
+    },
+    paginationDotActive: {
+        backgroundColor: "#007AFF",
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    disabledButton: {
+        backgroundColor: "#999",
+        opacity: 0.6,
     },
 });
 

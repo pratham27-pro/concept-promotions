@@ -30,6 +30,11 @@ const RetailerProfileScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [personPhotoUri, setPersonPhotoUri] = useState(null);
 
+    const [kycStatus, setKycStatus] = useState({
+        isVerified: false,
+        requiredFields: {},
+    });
+
     // Fetch retailer profile on mount and when screen is focused
     useFocusEffect(
         useCallback(() => {
@@ -63,7 +68,9 @@ const RetailerProfileScreen = () => {
 
             if (response.ok && responseData) {
                 const completion = calculateProfileCompletion(responseData);
+                const kyc = checkKYCStatus(responseData);
                 setRetailer({ ...responseData, profileCompletion: completion });
+                setKycStatus(kyc);
 
                 // ✅ just fetch URL-based photo
                 await fetchPersonPhoto(token);
@@ -150,6 +157,26 @@ const RetailerProfileScreen = () => {
         if (data.tnc && data.pennyCheck) completedFields++;
 
         return Math.round((completedFields / totalFields) * 100);
+    };
+
+    const checkKYCStatus = (data) => {
+        const requiredFields = {
+            panCard: data.shopDetails?.PANCard,
+            govtIdType: data.govtIdType,
+            govtIdNumber: data.govtIdNumber,
+            govtIdPhoto: data.govtIdPhoto?.url || null,
+            bankName: data.bankDetails?.bankName,
+            accountNumber: data.bankDetails?.accountNumber,
+            ifsc: data.bankDetails?.IFSC,
+            branchName: data.bankDetails?.branchName,
+            pennyCheck: data.pennyCheck,
+        };
+
+        const allFieldsComplete = Object.values(requiredFields).every(
+            (field) => field !== null && field !== undefined && field !== ""
+        );
+
+        return { isVerified: allFieldsComplete, requiredFields };
     };
 
     const getTierColor = (tier) => {
@@ -327,6 +354,7 @@ const RetailerProfileScreen = () => {
                     {/* Retailer Info */}
                     <View style={styles.infoContainer}>
                         <Text style={styles.retailerName}>{retailer.name}</Text>
+
                         {retailer.shopDetails?.shopName && (
                             <Text style={styles.shopName}>
                                 {retailer.shopDetails.shopName}
@@ -416,6 +444,88 @@ const RetailerProfileScreen = () => {
                         <Text style={styles.completionHint}>
                             Complete your profile to unlock more features!
                         </Text>
+                    )}
+                </View>
+                {/* KYC Verification Status Card */}
+                <View style={styles.kycCard}>
+                    <Text style={styles.cardTitle}>
+                        KYC Verification Status
+                    </Text>
+
+                    {kycStatus.isVerified ? (
+                        <View style={styles.kycVerifiedBadge}>
+                            <Ionicons
+                                name="checkmark-circle"
+                                size={28}
+                                color="#28a745"
+                            />
+                            <Text style={styles.kycVerifiedText}>
+                                Your KYC is Verified
+                            </Text>
+                        </View>
+                    ) : (
+                        <>
+                            <View style={styles.kycNotVerifiedBadge}>
+                                <Ionicons
+                                    name="close-circle"
+                                    size={28}
+                                    color="#dc3545"
+                                />
+                                <Text style={styles.kycNotVerifiedText}>
+                                    KYC Not Verified - Complete Required Fields
+                                </Text>
+                            </View>
+
+                            <View style={styles.missingFieldsContainer}>
+                                <Text style={styles.missingFieldsTitle}>
+                                    Required Fields for KYC:
+                                </Text>
+
+                                {Object.entries({
+                                    "PAN Card Number":
+                                        kycStatus.requiredFields.panCard,
+                                    "Government ID Type":
+                                        kycStatus.requiredFields.govtIdType,
+                                    "Government ID Number":
+                                        kycStatus.requiredFields.govtIdNumber,
+                                    "Government ID Photo":
+                                        kycStatus.requiredFields.govtIdPhoto,
+                                    "Bank Name":
+                                        kycStatus.requiredFields.bankName,
+                                    "Account Number":
+                                        kycStatus.requiredFields.accountNumber,
+                                    "IFSC Code": kycStatus.requiredFields.ifsc,
+                                    "Branch Name":
+                                        kycStatus.requiredFields.branchName,
+                                    "Penny Transfer Verification":
+                                        kycStatus.requiredFields.pennyCheck,
+                                }).map(([label, value]) => (
+                                    <View key={label} style={styles.fieldRow}>
+                                        <Ionicons
+                                            name={
+                                                value
+                                                    ? "checkmark-circle"
+                                                    : "close-circle"
+                                            }
+                                            size={18}
+                                            color={
+                                                value ? "#28a745" : "#dc3545"
+                                            }
+                                        />
+                                        <Text
+                                            style={[
+                                                styles.fieldText,
+                                                value
+                                                    ? styles.fieldComplete
+                                                    : styles.fieldIncomplete,
+                                            ]}
+                                        >
+                                            {label}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </>
                     )}
                 </View>
 
@@ -891,6 +1001,79 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 16,
         fontWeight: "bold",
+    },
+    kycCard: {
+        backgroundColor: "#fff",
+        borderRadius: 15,
+        padding: 20,
+        marginTop: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    kycVerifiedBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#d4edda",
+        borderWidth: 1,
+        borderColor: "#28a745",
+        borderRadius: 12,
+        padding: 15,
+        gap: 12,
+    },
+    kycVerifiedText: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: "#28a745",
+        flex: 1,
+    },
+    kycNotVerifiedBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#f8d7da",
+        borderWidth: 1,
+        borderColor: "#dc3545",
+        borderRadius: 12,
+        padding: 15,
+        gap: 12,
+        marginBottom: 15,
+    },
+    kycNotVerifiedText: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: "#dc3545",
+        flex: 1,
+    },
+    missingFieldsContainer: {
+        backgroundColor: "#f8f9fa",
+        borderRadius: 12,
+        padding: 15,
+        borderLeftWidth: 3,
+        borderLeftColor: "#dc3545",
+    },
+    missingFieldsTitle: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#333",
+        marginBottom: 12,
+    },
+    fieldRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingVertical: 6,
+    },
+    fieldText: {
+        fontSize: 14,
+        flex: 1,
+    },
+    fieldComplete: {
+        color: "#28a745",
+    },
+    fieldIncomplete: {
+        color: "#dc3545",
     },
 });
 
