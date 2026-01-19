@@ -6,6 +6,8 @@ import { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
+    FlatList,
     Image,
     Linking,
     Platform,
@@ -22,8 +24,6 @@ import Header from "../../components/common/Header";
 import { useAuth } from "../../context/AuthContext";
 import { API_BASE_URL } from "../../url/base";
 
-// TODO: One line description to be added from the backend.
-
 const EmployeeDashboardScreen = ({ navigation }) => {
     const { userProfile } = useAuth();
 
@@ -38,7 +38,7 @@ const EmployeeDashboardScreen = ({ navigation }) => {
     useFocusEffect(
         useCallback(() => {
             fetchCampaigns();
-        }, [])
+        }, []),
     );
 
     const fetchCampaigns = async () => {
@@ -67,7 +67,7 @@ const EmployeeDashboardScreen = ({ navigation }) => {
                         Authorization: `Bearer ${token}`,
                         "Content-Type": "application/json",
                     },
-                }
+                },
             );
 
             const data = await response.json();
@@ -86,18 +86,20 @@ const EmployeeDashboardScreen = ({ navigation }) => {
             const transformedCampaigns = data.campaigns.map((campaign) => {
                 // Find this employee's assignment in the campaign
                 const assignment = campaign.assignedEmployees?.find(
-                    (emp) => emp.employeeId._id === data.employee.id
+                    (emp) => emp.employeeId._id === data.employee.id,
                 );
 
                 return {
                     id: campaign._id,
                     title: campaign.name,
-                    description: campaign.description,
+                    description: `${campaign.type || "Campaign"} - ${
+                        campaign.client || "Client"
+                    }`,
                     startDate: new Date(
-                        campaign.campaignStartDate
+                        campaign.campaignStartDate,
                     ).toLocaleDateString("en-GB"),
                     endDate: new Date(
-                        campaign.campaignEndDate
+                        campaign.campaignEndDate,
                     ).toLocaleDateString("en-GB"),
                     image:
                         campaign.campaignImage ||
@@ -119,7 +121,7 @@ const EmployeeDashboardScreen = ({ navigation }) => {
             console.error("❌ Error fetching campaigns:", error);
             Alert.alert(
                 "Error",
-                error.message || "Failed to load campaigns. Please try again."
+                error.message || "Failed to load campaigns. Please try again.",
             );
         } finally {
             setLoading(false);
@@ -155,66 +157,81 @@ const EmployeeDashboardScreen = ({ navigation }) => {
         Alert.alert("Notifications", "You have no new notifications");
     };
 
-    const handleAccept = async (campaignId) => {
+    const updateCampaignStatus = async (campaignId, status) => {
         try {
             const token = await AsyncStorage.getItem("userToken");
+            if (!token) {
+                Alert.alert("Error", "Please login again.");
+                navigation.replace("Login");
+                return;
+            }
 
-            // TODO: Add your backend API call here to update campaign status
-            // const response = await fetch(`${API_BASE_URL}/employee/campaign/${campaignId}/accept`, {
-            //     method: "POST",
-            //     headers: {
-            //         Authorization: `Bearer ${token}`,
-            //         "Content-Type": "application/json",
-            //     },
-            // });
+            const response = await fetch(
+                `${API_BASE_URL}/retailer/campaigns/${campaignId}/status`,
+                {
+                    method: "PUT",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ status }),
+                },
+            );
 
-            // Update local state optimistically
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to update status");
+            }
+
+            // Update local state
             setCampaigns((prevCampaigns) =>
                 prevCampaigns.map((campaign) =>
                     campaign.id === campaignId
-                        ? { ...campaign, status: "accepted" }
-                        : campaign
-                )
+                        ? { ...campaign, status: status }
+                        : campaign,
+                ),
             );
 
-            Alert.alert("Success", "Campaign accepted successfully!");
+            Alert.alert("Success", `Campaign ${status} successfully!`);
+
+            console.log("✅ Campaign status updated:", status);
         } catch (error) {
-            console.error("Error accepting campaign:", error);
+            console.error("Error updating status:", error);
             Alert.alert(
                 "Error",
-                "Failed to accept campaign. Please try again."
+                error.message || "Failed to update campaign status",
             );
         }
     };
 
-    const handleReject = async (campaignId) => {
-        try {
-            const token = await AsyncStorage.getItem("userToken");
+    const handleAccept = (campaignId) => {
+        Alert.alert(
+            "Accept Campaign",
+            "Are you sure you want to accept this campaign?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Accept",
+                    onPress: () => updateCampaignStatus(campaignId, "accepted"),
+                },
+            ],
+        );
+    };
 
-            // TODO: Add your backend API call here to update campaign status
-            // const response = await fetch(`${API_BASE_URL}/employee/campaign/${campaignId}/reject`, {
-            //     method: "POST",
-            //     headers: {
-            //         Authorization: `Bearer ${token}`,
-            //         "Content-Type": "application/json",
-            //     },
-            // });
-
-            // Update local state optimistically
-            setCampaigns((prevCampaigns) =>
-                prevCampaigns.map((campaign) =>
-                    campaign.id === campaignId
-                        ? { ...campaign, status: "rejected" }
-                        : campaign
-                )
-            );
-        } catch (error) {
-            console.error("Error rejecting campaign:", error);
-            Alert.alert(
-                "Error",
-                "Failed to reject campaign. Please try again."
-            );
-        }
+    const handleReject = (campaignId) => {
+        Alert.alert(
+            "Reject Campaign",
+            "Are you sure you want to reject this campaign?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Reject",
+                    style: "destructive",
+                    onPress: () => updateCampaignStatus(campaignId, "rejected"),
+                },
+            ],
+        );
     };
 
     const handleViewDetails = (campaign) => {
@@ -224,6 +241,51 @@ const EmployeeDashboardScreen = ({ navigation }) => {
         navigation.navigate("EmployeeCampaignDetails", {
             campaign: campaign.fullData || campaign,
         });
+    };
+
+    const renderImageCarousel = (campaign) => {
+        const bannerImages = campaign?.fullData?.info?.banners || [];
+
+        // Show placeholder if no images
+        if (!bannerImages || bannerImages.length === 0) {
+            return;
+        }
+
+        const screenWidth = Dimensions.get("window").width;
+
+        return (
+            <View style={styles.carouselContainer}>
+                <FlatList
+                    data={bannerImages}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(item, index) => `${campaign.id}-${index}`}
+                    renderItem={({ item }) => (
+                        <View
+                            style={[
+                                styles.imageSlide,
+                                { width: screenWidth - 40 },
+                            ]}
+                        >
+                            <Image
+                                source={{ uri: item.url }}
+                                style={styles.bannerImage}
+                                resizeMode="cover"
+                            />
+                        </View>
+                    )}
+                />
+
+                {bannerImages.length > 1 && (
+                    <View style={styles.paginationContainer}>
+                        {bannerImages.map((_, index) => (
+                            <View key={index} style={[styles.paginationDot]} />
+                        ))}
+                    </View>
+                )}
+            </View>
+        );
     };
 
     if (loading) {
@@ -305,10 +367,7 @@ const EmployeeDashboardScreen = ({ navigation }) => {
                     ) : (
                         campaigns.map((campaign) => (
                             <View key={campaign.id} style={styles.campaignCard}>
-                                <Image
-                                    source={{ uri: campaign.image }}
-                                    style={styles.campaignImage}
-                                />
+                                {renderImageCarousel(campaign)}
 
                                 <View style={styles.campaignContent}>
                                     <Text style={styles.campaignTitle}>
@@ -360,7 +419,8 @@ const EmployeeDashboardScreen = ({ navigation }) => {
                                         </Text>
                                     </TouchableOpacity>
 
-                                    {campaign.status === null && (
+                                    {(!campaign.status ||
+                                        campaign.status === "pending") && (
                                         <View
                                             style={styles.acceptRejectButtons}
                                         >
@@ -627,6 +687,42 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: "600",
         marginLeft: 8,
+    },
+    carouselContainer: {
+        width: "100%",
+        backgroundColor: "#f0f0f0",
+    },
+    imageSlide: {
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    bannerImage: {
+        width: "100%",
+        height: 180,
+    },
+    paginationContainer: {
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        paddingVertical: 10,
+        backgroundColor: "#fff",
+    },
+    paginationDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#ccc",
+        marginHorizontal: 4,
+    },
+    paginationDotActive: {
+        backgroundColor: "#007AFF",
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    disabledButton: {
+        backgroundColor: "#999",
+        opacity: 0.6,
     },
 });
 
