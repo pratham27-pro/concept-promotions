@@ -14,6 +14,7 @@ import CreateRetailerProfileScreen from "../screens/retailer/CreateRetailerProfi
 import ClientStackNavigator from "../navigation/client/ClientStackNavigator";
 
 // ✅ Import STACK Navigators (not Tab Navigators)
+import ForgotPasswordScreen from "../screens/auth/ForgotPasswordScreen";
 import EmployeeStackNavigator from "./employee/EmployeeStackNavigator";
 import RetailerStackNavigator from "./retailer/RetailerStackNavigator";
 
@@ -36,7 +37,28 @@ const AppNavigator = () => {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             {!userToken ? (
                 // ✅ Not logged in - Show universal login screen
-                <Stack.Screen name="Login" component={LoginScreen} />
+                <>
+                    <Stack.Screen name="Login" component={LoginScreen} />
+                    <Stack.Screen
+                        name="ForgotPassword"
+                        component={ForgotPasswordScreen}
+                        options={{
+                            headerShown: true,
+                            headerTitle: "Reset Password",
+                            headerBackTitle: "Back",
+                            headerStyle: {
+                                backgroundColor: "#fff",
+                                elevation: 2,
+                                shadowOpacity: 0.1,
+                            },
+                            headerTintColor: "#E53935",
+                            headerTitleStyle: {
+                                fontWeight: "bold",
+                                fontSize: 18,
+                            },
+                        }}
+                    />
+                </>
             ) : needsProfileCompletion ? (
                 // ✅ Logged in but profile incomplete
                 <>
@@ -71,7 +93,7 @@ const AppNavigator = () => {
                     {userRole === "client" && (
                         <>
                             {console.log(
-                                "✅ Rendering ClientTabs for client role"
+                                "✅ Rendering ClientTabs for client role",
                             )}
                             <Stack.Screen
                                 name="ClientStack"

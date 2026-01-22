@@ -126,7 +126,7 @@ const LoginScreen = () => {
                 console.error("❌ Login Error:", data);
                 Alert.alert(
                     "Login Failed",
-                    data.message || "Invalid credentials. Please try again."
+                    data.message || "Invalid credentials. Please try again.",
                 );
                 setIsLoading(false);
                 return;
@@ -141,7 +141,7 @@ const LoginScreen = () => {
             await AsyncStorage.setItem("userEmail", email);
 
             let userId;
-            let backendRole = role; // This is "client_admin", "retailer_admin", "employee_admin"
+            let backendRole = role;
 
             // ✅ Extract actual role from response data
             if (
@@ -150,7 +150,6 @@ const LoginScreen = () => {
                 role === "admin"
             ) {
                 userId = data.admin?.id || data.admin?._id;
-                // Get the actual role from admin data (national, regional, etc)
                 backendRole = data.admin?.role || "national";
                 console.log("🔍 Client admin role from backend:", backendRole);
             } else if (role === "retailer") {
@@ -170,19 +169,26 @@ const LoginScreen = () => {
             console.error("❌ Network error:", error);
             Alert.alert(
                 "Network Error",
-                "Unable to connect to server. Please check your internet connection and try again."
+                "Unable to connect to server. Please check your internet connection and try again.",
             );
         } finally {
             setIsLoading(false);
         }
     };
 
+    // ✅ Updated forgot password handler
     const handleForgotPassword = () => {
-        Alert.alert(
-            "Forgot Password",
-            "Please contact your administrator to reset your password.",
-            [{ text: "OK" }]
-        );
+        if (!role) {
+            Alert.alert(
+                "Select Role",
+                "Please select your role before proceeding to reset password.",
+                [{ text: "OK" }],
+            );
+            return;
+        }
+
+        // Navigate to ForgotPassword screen with role pre-selected
+        navigation.navigate("ForgotPassword", { preSelectedRole: role });
     };
 
     return (
@@ -307,8 +313,8 @@ const LoginScreen = () => {
                         </View>
                     )}
 
-                    {/* Forgot Password - Only show for password-based login */}
-                    {needsPassword && (
+                    {/* ✅ Forgot Password - Show for ALL roles (including retailer) */}
+                    {(needsPassword || needsContactNo) && (
                         <TouchableOpacity
                             style={styles.forgotPassword}
                             onPress={handleForgotPassword}
