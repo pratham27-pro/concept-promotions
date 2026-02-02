@@ -33,8 +33,7 @@ const LoginScreen = () => {
     ]);
 
     // Form state
-    const [email, setEmail] = useState("");
-    const [contactNo, setContactNo] = useState("");
+    const [identifier, setIdentifier] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -43,25 +42,31 @@ const LoginScreen = () => {
     const getRequiredFields = () => {
         if (role === "retailer") {
             return {
-                needsEmail: true,
-                needsContactNo: true,
-                needsPassword: false,
+                needsIdentifier: true, // Single field for email or phone
+                needsPassword: true,
             };
         } else if (role === "employee" || role === "client") {
             return {
                 needsEmail: true,
-                needsContactNo: false,
                 needsPassword: true,
             };
         }
         return {
             needsEmail: false,
-            needsContactNo: false,
+            needsIdentifier: false,
             needsPassword: false,
         };
     };
 
-    const { needsEmail, needsContactNo, needsPassword } = getRequiredFields();
+    const isEmail = (value) => {
+        return /\S+@\S+\.\S+/.test(value);
+    };
+
+    const isPhone = (value) => {
+        return /^\d{10}$/.test(value);
+    };
+
+    const { needsEmail, needsIdentifier, needsPassword } = getRequiredFields();
 
     const handleLogin = async () => {
         // Validation
@@ -69,17 +74,34 @@ const LoginScreen = () => {
             Alert.alert("Error", "Please select your role");
             return;
         }
-        if (needsEmail && !email) {
-            Alert.alert("Error", "Please enter your email");
-            return;
-        }
-        if (needsContactNo && !contactNo) {
-            Alert.alert("Error", "Please enter your contact number");
-            return;
-        }
-        if (needsPassword && !password) {
-            Alert.alert("Error", "Please enter your password");
-            return;
+
+        // For retailer, validate identifier
+        if (role === "retailer") {
+            if (!identifier) {
+                Alert.alert("Error", "Please enter your email or phone number");
+                return;
+            }
+            if (!isEmail(identifier) && !isPhone(identifier)) {
+                Alert.alert(
+                    "Invalid Input",
+                    "Please enter a valid email or 10-digit phone number",
+                );
+                return;
+            }
+            if (!password) {
+                Alert.alert("Error", "Please enter your password");
+                return;
+            }
+        } else {
+            // For employee and client
+            if (needsEmail && !identifier) {
+                Alert.alert("Error", "Please enter your email");
+                return;
+            }
+            if (needsPassword && !password) {
+                Alert.alert("Error", "Please enter your password");
+                return;
+            }
         }
 
         setIsLoading(true);
@@ -91,20 +113,30 @@ const LoginScreen = () => {
             // Build endpoint and payload based on role
             if (role === "retailer") {
                 endpoint = `${API_BASE_URL}/retailer/login`;
+
+                // Detect whether identifier is email or phone
+                let email, contactNo;
+                if (isEmail(identifier)) {
+                    email = identifier.trim();
+                } else if (isPhone(identifier)) {
+                    contactNo = identifier.trim();
+                }
+
                 requestBody = {
-                    email: email.trim(),
-                    contactNo: contactNo.trim(),
+                    email,
+                    contactNo,
+                    password: password.trim(),
                 };
             } else if (role === "employee") {
                 endpoint = `${API_BASE_URL}/employee/employee/login`;
                 requestBody = {
-                    email: email.trim(),
+                    email: identifier.trim(),
                     password: password,
                 };
             } else if (role === "client") {
                 endpoint = `${API_BASE_URL}/client/admin/login`;
                 requestBody = {
-                    email: email.trim(),
+                    email: identifier.trim(),
                     password: password,
                 };
             }
@@ -138,7 +170,7 @@ const LoginScreen = () => {
             // Save userData
             await AsyncStorage.setItem("userData", JSON.stringify(data));
             await AsyncStorage.setItem("userToken", data.token || "");
-            await AsyncStorage.setItem("userEmail", email);
+            await AsyncStorage.setItem("userEmail", identifier);
 
             let userId;
             let backendRole = role;
@@ -245,17 +277,19 @@ const LoginScreen = () => {
                         />
                     </View>
 
-                    {/* Email Input - Show for all roles */}
-                    {needsEmail && (
+                    {/* Single Identifier Input - For Retailer (Email or Phone) */}
+                    {needsIdentifier && (
                         <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                            <Text style={styles.label}>Email *</Text>
+                            <Text style={styles.label}>
+                                Email or Phone Number *
+                            </Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Enter your email"
+                                placeholder="example@gmail.com or 9876543210"
                                 placeholderTextColor="#999"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
+                                value={identifier}
+                                onChangeText={setIdentifier}
+                                keyboardType="default"
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 editable={!isLoading}
@@ -263,20 +297,19 @@ const LoginScreen = () => {
                         </View>
                     )}
 
-                    {/* Contact Number Input - Only for Retailer */}
-                    {needsContactNo && (
+                    {/* Email Input - For Employee & Client */}
+                    {needsEmail && !needsIdentifier && (
                         <View style={[styles.inputGroup, { zIndex: 1 }]}>
-                            <Text style={styles.label}>Contact Number *</Text>
+                            <Text style={styles.label}>Email *</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Enter your contact number"
+                                placeholder="Enter your email"
                                 placeholderTextColor="#999"
-                                value={contactNo}
-                                onChangeText={(text) =>
-                                    setContactNo(text.replace(/[^0-9]/g, ""))
-                                }
-                                keyboardType="phone-pad"
-                                maxLength={10}
+                                value={identifier}
+                                onChangeText={setIdentifier}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
                                 editable={!isLoading}
                             />
                         </View>
@@ -314,7 +347,7 @@ const LoginScreen = () => {
                     )}
 
                     {/* ✅ Forgot Password - Show for ALL roles (including retailer) */}
-                    {(needsPassword || needsContactNo) && (
+                    {(needsPassword || needsIdentifier) && (
                         <TouchableOpacity
                             style={styles.forgotPassword}
                             onPress={handleForgotPassword}
