@@ -43,10 +43,10 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
                 client: campaign.client || "N/A",
                 type: campaign.campaignType || campaign.type || "Campaign",
                 startDate: formatDate(
-                    campaign.startDate || campaign.campaignStartDate
+                    campaign.startDate || campaign.campaignStartDate,
                 ),
                 endDate: formatDate(
-                    campaign.endDate || campaign.campaignEndDate
+                    campaign.endDate || campaign.campaignEndDate,
                 ),
                 // ✅ Preserve original date fields for other screens
                 campaignStartDate:
@@ -73,7 +73,7 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
             console.log("✅ Info field:", transformedCampaign.info);
             console.log(
                 "✅ Gratification field:",
-                transformedCampaign.gratification
+                transformedCampaign.gratification,
             );
         } catch (error) {
             console.error("❌ Error transforming campaign:", error);
@@ -153,7 +153,7 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
         console.log("📤 ========== SUBMIT REPORT NAVIGATION ==========");
         console.log(
             "📤 Campaign Data being sent:",
-            JSON.stringify(campaignData, null, 2)
+            JSON.stringify(campaignData, null, 2),
         );
         console.log("📤 Campaign ID:", campaignData.id);
         console.log("📤 Campaign Name:", campaignData.name);
@@ -294,25 +294,25 @@ const EmployeeCampaignDetailsScreen = ({ route }) => {
                         icon="document-text-outline"
                         onPress={handleViewReport}
                     />
-
+                    {/*
                     <GridButton
                         title="Period"
                         icon="calendar-outline"
                         onPress={() => handleButtonPress("Period")}
-                    />
+                    /> */}
 
                     {/* Row 3 */}
-                    <GridButton
+                    {/* <GridButton
                         title="Outlets Assigned"
                         icon="storefront-outline"
                         onPress={() => handleButtonPress("Outlets Assigned")}
-                    />
+                    /> */}
 
-                    <GridButton
+                    {/* <GridButton
                         title="Status"
                         icon="stats-chart-outline"
                         onPress={() => handleButtonPress("Status")}
-                    />
+                    /> */}
                 </View>
 
                 {/* Submit Report Button - Using GradientButton */}

@@ -117,7 +117,7 @@ const RetailerCampaignDetailsScreen = ({ route, navigation }) => {
         if (campaignData.status !== "accepted") {
             Alert.alert(
                 "Cannot Submit Report",
-                "You need to accept this campaign before submitting reports."
+                "You need to accept this campaign before submitting reports.",
             );
             return;
         }
@@ -217,7 +217,7 @@ const RetailerCampaignDetailsScreen = ({ route, navigation }) => {
                                         </Text>
                                     </View>
                                 </View>
-                            )
+                            ),
                         )}
                     </View>
                 )}
@@ -244,14 +244,14 @@ const RetailerCampaignDetailsScreen = ({ route, navigation }) => {
                         onPress={handleViewReport}
                     />
 
-                    <GridButton
+                    {/* <GridButton
                         title="Stats"
                         icon="stats-chart-outline"
                         onPress={handleStats}
-                    />
+                    /> */}
 
                     {/* Row 3 */}
-                    <GridButton
+                    {/* <GridButton
                         title="Period"
                         icon="calendar-outline"
                         onPress={handlePeriod}
@@ -261,7 +261,7 @@ const RetailerCampaignDetailsScreen = ({ route, navigation }) => {
                         title="Leaderboard"
                         icon="trophy-outline"
                         onPress={handleLeaderboard}
-                    />
+                    /> */}
                 </View>
 
                 {/* Submit Report Button - Only show if accepted */}
